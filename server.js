@@ -292,7 +292,15 @@ app.get('/api/production', async (req, res) => {
 
   try {
     const [runs] = await pool.query(
-      'SELECT id, run_date as runDate, kotha_stock as kothaStock, production_total as productionTotal, balance_kotha as balanceKotha, created_at as createdAt FROM production_runs WHERE user_id = ? ORDER BY run_date DESC, created_at DESC',
+      `SELECT id, run_date as runDate, 
+              opening_kotha_stock as openingKothaStock,
+              qty_received_kgs as qtyReceivedKgs,
+              source_godown_id as sourceGodownId,
+              kotha_stock as kothaStock, 
+              production_total as productionTotal, 
+              balance_kotha as balanceKotha, 
+              created_at as createdAt 
+       FROM production_runs WHERE user_id = ? ORDER BY run_date DESC, created_at DESC`,
       [userId]
     );
 
@@ -318,7 +326,7 @@ app.get('/api/production', async (req, res) => {
 
 app.post('/api/production', async (req, res) => {
   const {
-    userId, runDate, kothaStock, productionTotal, balanceKotha, items, sourceGodownId
+    userId, runDate, openingKothaStock, qtyReceivedKgs, sourceGodownId, kothaStock, productionTotal, balanceKotha, items
   } = req.body;
 
   if (!userId || !runDate || !items) {
@@ -333,9 +341,20 @@ app.post('/api/production', async (req, res) => {
 
     // 1. Insert production run
     await conn.query(
-      `INSERT INTO production_runs (id, user_id, run_date, kotha_stock, production_total, balance_kotha)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [runId, userId, runDate, parseFloat(kothaStock) || 0, parseFloat(productionTotal) || 0, parseFloat(balanceKotha) || 0]
+      `INSERT INTO production_runs 
+       (id, user_id, run_date, opening_kotha_stock, qty_received_kgs, source_godown_id, kotha_stock, production_total, balance_kotha)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        runId, 
+        userId, 
+        runDate, 
+        parseFloat(openingKothaStock) || 0, 
+        parseFloat(qtyReceivedKgs) || 0, 
+        sourceGodownId || null, 
+        parseFloat(kothaStock) || 0, 
+        parseFloat(productionTotal) || 0, 
+        parseFloat(balanceKotha) || 0
+      ]
     );
 
     // 2. Insert items
@@ -350,49 +369,100 @@ app.post('/api/production', async (req, res) => {
       }
     }
 
-    // 3. If source godown was selected, auto-create a ledger entry for wheat consumption
-    if (sourceGodownId) {
-      const entryId = 'e_' + crypto.randomUUID();
-      const issQtyMt = (parseFloat(productionTotal) || 0) / 1000.0;
-      
-      // We calculate closing stock for the entry
-      // We first query the latest entry before this run date to get its closing balance
-      const [prior] = await conn.query(
-        `SELECT clos_bags, clos_qty FROM entries 
-         WHERE user_id = ? AND godown_id = ? AND entry_date <= ? 
-         ORDER BY entry_date DESC, id DESC LIMIT 1`,
-        [userId, sourceGodownId, runDate]
-      );
-      
-      let prevB = 0;
-      let prevQ = 0;
-      if (prior.length > 0) {
-        prevB = parseFloat(prior[0].clos_bags) || 0;
-        prevQ = parseFloat(prior[0].clos_qty) || 0;
-      } else {
-        // Fallback to opening stock
-        const [gd] = await conn.query(
-          `SELECT op_bags, op_qty FROM godowns WHERE id = ?`,
-          [sourceGodownId]
+    // 3. If source godown selected and qty > 0, auto-create a ledger entry for wheat consumption
+    const issQtyMt = (parseFloat(qtyReceivedKgs) || 0) / 1000.0;
+    if (issQtyMt > 0 && sourceGodownId) {
+      if (sourceGodownId === 'ALL_GODOWNS') {
+        // Fetch all godowns for this user
+        const [godowns] = await conn.query(
+          `SELECT id, name, op_bags, op_qty FROM godowns WHERE user_id = ?`,
+          [userId]
         );
-        if (gd.length > 0) {
-          prevB = parseFloat(gd[0].op_bags) || 0;
-          prevQ = parseFloat(gd[0].op_qty) || 0;
+
+        // Get closing stock for each godown at this date
+        const gdStocks = [];
+        let totalClosing = 0;
+
+        for (const gd of godowns) {
+          const [prior] = await conn.query(
+            `SELECT clos_bags, clos_qty FROM entries 
+             WHERE user_id = ? AND godown_id = ? AND entry_date <= ? 
+             ORDER BY entry_date DESC, id DESC LIMIT 1`,
+            [userId, gd.id, runDate]
+          );
+
+          let prevB = 0;
+          let prevQ = 0;
+          if (prior.length > 0) {
+            prevB = parseFloat(prior[0].clos_bags) || 0;
+            prevQ = parseFloat(prior[0].clos_qty) || 0;
+          } else {
+            prevB = parseFloat(gd.op_bags) || 0;
+            prevQ = parseFloat(gd.op_qty) || 0;
+          }
+
+          gdStocks.push({ id: gd.id, name: gd.name, prevB, prevQ });
+          totalClosing += prevQ;
         }
+
+        // Create proportional entries
+        for (const gd of gdStocks) {
+          const shareQty = totalClosing > 0 ? (gd.prevQ / totalClosing) * issQtyMt : (issQtyMt / gdStocks.length);
+          const shareBags = 0;
+
+          const closB = Math.max(0, gd.prevB - shareBags);
+          const closQ = Math.max(0, gd.prevQ - shareQty);
+
+          const entryId = 'e_' + crypto.randomUUID();
+          await conn.query(
+            `INSERT INTO entries 
+            (id, user_id, godown_id, entry_date, particulers, iss_bags, iss_qty, recv_bags, recv_qty, clos_bags, clos_qty, remarks)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              entryId, userId, gd.id, runDate, 'WHEAT CONSUMPTION (PRODUCTION)',
+              0, shareQty, 0, 0, closB, closQ, `Auto-generated proportional consumption from ALL GODOWNS`
+            ]
+          );
+        }
+      } else {
+        // Single godown deduction
+        const [prior] = await conn.query(
+          `SELECT clos_bags, clos_qty FROM entries 
+           WHERE user_id = ? AND godown_id = ? AND entry_date <= ? 
+           ORDER BY entry_date DESC, id DESC LIMIT 1`,
+          [userId, sourceGodownId, runDate]
+        );
+
+        let prevB = 0;
+        let prevQ = 0;
+        if (prior.length > 0) {
+          prevB = parseFloat(prior[0].clos_bags) || 0;
+          prevQ = parseFloat(prior[0].clos_qty) || 0;
+        } else {
+          const [gd] = await conn.query(
+            `SELECT op_bags, op_qty FROM godowns WHERE id = ?`,
+            [sourceGodownId]
+          );
+          if (gd.length > 0) {
+            prevB = parseFloat(gd[0].op_bags) || 0;
+            prevQ = parseFloat(gd[0].op_qty) || 0;
+          }
+        }
+
+        const closB = Math.max(0, prevB - 0);
+        const closQ = Math.max(0, prevQ - issQtyMt);
+
+        const entryId = 'e_' + crypto.randomUUID();
+        await conn.query(
+          `INSERT INTO entries 
+          (id, user_id, godown_id, entry_date, particulers, iss_bags, iss_qty, recv_bags, recv_qty, clos_bags, clos_qty, remarks)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            entryId, userId, sourceGodownId, runDate, 'WHEAT CONSUMPTION (PRODUCTION)',
+            0, issQtyMt, 0, 0, closB, closQ, `Auto-generated from Production Run ${runDate}`
+          ]
+        );
       }
-
-      const closB = Math.max(0, prevB - 0); // Bags issued is 0 by default for bulk wheat
-      const closQ = Math.max(0, prevQ - issQtyMt);
-
-      await conn.query(
-        `INSERT INTO entries 
-        (id, user_id, godown_id, entry_date, particulers, iss_bags, iss_qty, recv_bags, recv_qty, clos_bags, clos_qty, remarks)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          entryId, userId, sourceGodownId, runDate, 'WHEAT CONSUMPTION (PRODUCTION)',
-          0, issQtyMt, 0, 0, closB, closQ, `Auto-generated from Production Run ${runDate}`
-        ]
-      );
     }
 
     await conn.commit();

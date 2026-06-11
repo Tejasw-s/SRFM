@@ -738,16 +738,20 @@
               <span>Kotha Stock Setup</span>
             </div>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; align-items: end; margin-bottom: 20px; flex-wrap: wrap;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end; margin-bottom: 20px;">
               <div class="form-group">
                 <label>Production Date</label>
-                <input type="date" id="prod-date">
+                <input type="date" id="prod-date" onchange="onProdDateChange()">
               </div>
               <div class="form-group">
-                <label>Source Godown (for Wheat Closing Stock)</label>
+                <label>Source Godown (for Wheat Stock)</label>
                 <select id="prod-source-gd" onchange="onProdSourceGodownChange()">
                   <!-- Options will be populated here -->
                 </select>
+              </div>
+              <div class="form-group">
+                <label>Qty to Send (M.T.)</label>
+                <input type="number" id="prod-send-mt" placeholder="0.000" step="0.001" oninput="updateSendKgs()" class="excel-input" style="height: 42px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0 12px; background: var(--surface); color: var(--text);">
               </div>
               <div>
                 <button class="btn btn-outline" id="btn-send-to-kotha" onclick="sendGodownToKotha()" style="width: 100%; height: 42px; font-weight: 600;">
@@ -756,54 +760,40 @@
               </div>
             </div>
 
-            <div class="metrics" style="margin-top: 20px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+            <!-- Godown current stock display -->
+            <div id="prod-source-stock-info" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; padding: 10px; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+              Select a godown...
+            </div>
+
+            <div class="metrics" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+              <div class="mc">
+                <div class="m-lbl">OPENING KOTHA (KGS)</div>
+                <div class="m-val" id="prod-opening-val" style="font-size: 22px; font-weight: 700; color: var(--text-secondary);">0 KGS</div>
+                <div class="m-desc">Yesterday's closing balance</div>
+              </div>
               <div class="mc or">
-                <div class="m-lbl">KOTHA STOCK (KGS)</div>
-                <div class="m-val" style="margin-top: 5px;">
-                  <input type="number" id="prod-kotha-stock" value="0" oninput="calcProdBalances()" style="width: 100%; font-size: 20px; font-weight: 700; border: none; border-bottom: 2px dashed var(--orange-dark); background: transparent; padding: 2px 5px; color: var(--orange-dark); text-align: center;">
-                </div>
-                <div class="m-desc" id="prod-source-stock-info">Available wheat stock in Kotha</div>
+                <div class="m-lbl">ADDED TODAY (KGS)</div>
+                <div class="m-val" id="prod-added-val" style="font-size: 22px; font-weight: 700; color: var(--saffron);">0 KGS</div>
+                <div class="m-desc">Sent from Godowns today</div>
               </div>
               <div class="mc sa">
-                <div class="m-lbl">PRODUCTION TOTAL (KGS)</div>
-                <div class="m-val" id="prod-total-val" style="font-size: 24px;">0</div>
-                <div class="m-desc">Total output items produced</div>
+                <div class="m-lbl">TOTAL KOTHA (KGS)</div>
+                <div class="m-val" id="prod-total-kotha-val" style="font-size: 22px; font-weight: 700; color: var(--primary);">0 KGS</div>
+                <div class="m-desc">Opening + Added Stock</div>
               </div>
               <div class="mc gr">
-                <div class="m-lbl">BAL KOTHA (KGS)</div>
-                <div class="m-val" id="prod-bal-val" style="font-size: 24px;">0</div>
+                <div class="m-lbl">BAL KOTHA / CLOSING (KGS)</div>
+                <div class="m-val" id="prod-bal-val" style="font-size: 22px; font-weight: 700; color: var(--green);">0 KGS</div>
                 <div class="m-desc">Balance wheat in Kotha</div>
               </div>
             </div>
-          </div>
 
-          <div class="card" style="padding: 0; overflow: hidden; margin-top: 20px;">
-            <div class="card-title" style="padding: 15px 20px 0 20px;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              <span>Production Output (Items)</span>
+            <!-- BUTTON BELOW THE GREEN BOX (BAL KOTHA) -->
+            <div style="margin-top: 25px; display: flex; justify-content: center;">
+              <button class="btn btn-primary" onclick="openProdModal()" style="padding: 12px 30px; font-size: 16px; font-weight: 700; box-shadow: var(--sh-glow);">
+                ⚡ Send to Production
+              </button>
             </div>
-            
-            <div class="table-wrap excel-table-wrap" style="margin-top: 15px;">
-              <table class="excel-table">
-                <thead>
-                  <tr>
-                    <th>Product Name</th>
-                    <th>Pack Size</th>
-                    <th class="num" style="width: 120px;">Bags</th>
-                    <th class="num" style="width: 150px;">Kgs</th>
-                    <th style="width: 80px; text-align: center;">Clear</th>
-                  </tr>
-                </thead>
-                <tbody id="prod-tbody">
-                  <!-- Product rows will be dynamically generated here -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 15px;">
-            <button class="btn btn-outline" onclick="clearProdForm()">Clear Form</button>
-            <button class="btn btn-primary" onclick="submitProductionRun()">Send to Production ➜</button>
           </div>
 
           <!-- Production History Section -->
@@ -818,15 +808,16 @@
                 <thead>
                   <tr>
                     <th>Run Date</th>
-                    <th class="num">Kotha Stock (Kgs)</th>
+                    <th class="num">Opening Kotha (Kgs)</th>
+                    <th class="num">Received Today (Kgs)</th>
                     <th class="num">Production Total (Kgs)</th>
-                    <th class="num">Balance Kotha (Kgs)</th>
+                    <th class="num">Closing Kotha (Kgs)</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody id="prod-history-tbody">
                   <tr>
-                    <td colspan="5" style="text-align: center; color: var(--text-muted)">No production runs recorded.</td>
+                    <td colspan="6" style="text-align: center; color: var(--text-muted)">No production runs recorded.</td>
                   </tr>
                 </tbody>
               </table>
@@ -1049,6 +1040,53 @@ CREATE TABLE entries (
         <button class="btn btn-primary btn-sm" onclick="saveRename()">
           <span id="ren-save-lbl">Save</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PRODUCTION DIALOG MODAL ===== -->
+  <div class="modal-overlay" id="prod-modal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="prod-modal-title">New Production Run Output</h3>
+        <button class="modal-close" onclick="closeProdModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="metrics" style="grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px;">
+          <div class="mc">
+            <div class="m-lbl">TOTAL KOTHA STOCK</div>
+            <div class="m-val" id="modal-kotha-stock" style="font-size: 20px; font-weight: 700; color: var(--primary);">0 KGS</div>
+          </div>
+          <div class="mc sa">
+            <div class="m-lbl">PRODUCTION TOTAL</div>
+            <div class="m-val" id="modal-prod-total" style="font-size: 20px; font-weight: 700; color: var(--saffron);">0 KGS</div>
+          </div>
+          <div class="mc gr">
+            <div class="m-lbl">BALANCE KOTHA</div>
+            <div class="m-val" id="modal-bal-kotha" style="font-size: 20px; font-weight: 700; color: var(--green);">0 KGS</div>
+          </div>
+        </div>
+
+        <div class="table-wrap excel-table-wrap" style="max-height: 400px; overflow-y: auto;">
+          <table class="excel-table">
+            <thead>
+              <tr>
+                <th>Product Name</th>
+                <th>Pack Size</th>
+                <th class="num" style="width: 120px;">Bags</th>
+                <th class="num" style="width: 150px;">Kgs</th>
+                <th style="width: 80px; text-align: center;">Clear</th>
+              </tr>
+            </thead>
+            <tbody id="modal-prod-tbody">
+              <!-- Dynamically populated rows in app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeProdModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="confirmProductionRun()">Submit Production Run (Enter) ➜</button>
       </div>
     </div>
   </div>

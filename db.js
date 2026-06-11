@@ -79,12 +79,23 @@ async function initDB() {
         id VARCHAR(50) PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
         run_date DATE NOT NULL,
+        opening_kotha_stock DECIMAL(12,2) DEFAULT 0,
+        qty_received_kgs DECIMAL(12,2) DEFAULT 0,
+        source_godown_id VARCHAR(50),
         kotha_stock DECIMAL(12,2) DEFAULT 0,
         production_total DECIMAL(12,2) DEFAULT 0,
         balance_kotha DECIMAL(12,2) DEFAULT 0,
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
+
+    try {
+      await conn.query(`ALTER TABLE production_runs ADD COLUMN IF NOT EXISTS opening_kotha_stock DECIMAL(12,2) DEFAULT 0`);
+      await conn.query(`ALTER TABLE production_runs ADD COLUMN IF NOT EXISTS qty_received_kgs DECIMAL(12,2) DEFAULT 0`);
+      await conn.query(`ALTER TABLE production_runs ADD COLUMN IF NOT EXISTS source_godown_id VARCHAR(50)`);
+    } catch (migErr) {
+      console.log('Migration columns check:', migErr.message);
+    }
 
     // 5. Create production_items table
     await conn.query(`

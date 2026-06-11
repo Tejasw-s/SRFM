@@ -1355,6 +1355,7 @@ const productionProducts = [
 ];
 
 let prodRuns = [];
+let todayAddedKgs = 0;
 
 function initProductionPage() {
   const dateInput = document.getElementById('prod-date');
@@ -1364,19 +1365,202 @@ function initProductionPage() {
 
   // Populate source godown dropdown
   const select = document.getElementById('prod-source-gd');
-  select.innerHTML = '<option value="">-- Choose Godown (Wheat Stock) --</option>';
+  select.innerHTML = `
+    <option value="">-- Choose Godown (Wheat Stock) --</option>
+    <option value="ALL_GODOWNS">ALL GODOWNS</option>
+  `;
   state.godowns.forEach(gd => {
     select.innerHTML += `<option value="${gd.id}">${gd.name}</option>`;
   });
 
-  document.getElementById('prod-source-stock-info').innerText = 'Select a godown and click Send to Kotha';
+  document.getElementById('prod-source-stock-info').innerText = 'Select a godown and enter Qty to Send';
 
-  renderProductionProductsTable();
-  loadProductionHistory();
+  // Load history first so getKothaOpeningStock works
+  loadProductionHistory().then(() => {
+    onProdDateChange();
+  });
 }
 
-function renderProductionProductsTable() {
-  const tbody = document.getElementById('prod-tbody');
+function getKothaOpeningStock(dateStr) {
+  // Filter runs strictly before dateStr
+  const priorRuns = prodRuns.filter(r => r.runDate < dateStr);
+  if (priorRuns.length === 0) return 0;
+  // Sort descending by runDate, then by creation
+  priorRuns.sort((a, b) => b.runDate.localeCompare(a.runDate));
+  return parseFloat(priorRuns[0].balanceKotha) || 0;
+}
+
+function onProdDateChange() {
+  const dateVal = document.getElementById('prod-date').value;
+  const openingStock = getKothaOpeningStock(dateVal);
+  
+  document.getElementById('prod-opening-val').innerText = Math.round(openingStock).toLocaleString() + ' KGS';
+  
+  // Update source godown closing display
+  onProdSourceGodownChange();
+  
+  // Recalculate metrics
+  recalcKothaMetrics();
+}
+
+function onProdSourceGodownChange() {
+  const godownId = document.getElementById('prod-source-gd').value;
+  const dateVal = document.getElementById('prod-date').value;
+  const infoEl = document.getElementById('prod-source-stock-info');
+
+  if (!godownId) {
+    infoEl.innerText = 'Select a godown and enter Qty to Send';
+    return;
+  }
+
+  let stock;
+  let name;
+  if (godownId === 'ALL_GODOWNS') {
+    stock = getAllGodownsClosingAtDate(dateVal);
+    name = 'ALL GODOWNS';
+  } else {
+    stock = getGodownClosingAtDate(godownId, dateVal);
+    const gd = state.godowns.find(g => g.id === godownId);
+    name = gd ? gd.name : '';
+  }
+
+  infoEl.innerHTML = `<strong style="color:var(--saffron);">${name}</strong> Closing Stock: <strong>${Math.round(stock.bags).toLocaleString()}</strong> Bags / <strong>${parseFloat(stock.qty).toFixed(3)}</strong> M.T.`;
+  
+  // Default Qty to Send (M.T.) to current closing stock
+  document.getElementById('prod-send-mt').value = parseFloat(stock.qty).toFixed(3);
+}
+
+function getGodownClosingAtDate(godownId, dateStr) {
+  const gd = state.godowns.find(g => g.id === godownId);
+  if (!gd) return { bags: 0, qty: 0 };
+  
+  const relevant = state.entries.filter(e => e.godownId === godownId && e.date <= dateStr);
+  if (relevant.length === 0) {
+    return { bags: parseFloat(gd.opBags) || 0, qty: parseFloat(gd.opQty) || 0 };
+  }
+  
+  // Sort relevant entries chronologically to find the last one.
+  relevant.sort((a, b) => b.date.localeCompare(a.date));
+  
+  return {
+    bags: parseFloat(relevant[0].closBags) || 0,
+    qty: parseFloat(relevant[0].closQty) || 0
+  };
+}
+
+function getAllGodownsClosingAtDate(dateStr) {
+  let totalBags = 0;
+  let totalQty = 0;
+  state.godowns.forEach(gd => {
+    const stock = getGodownClosingAtDate(gd.id, dateStr);
+    totalBags += stock.bags;
+    totalQty += stock.qty;
+  });
+  return { bags: totalBags, qty: totalQty };
+}
+
+function updateSendKgs() {
+  // Just trigger recalculation if they type
+  const sendMt = parseFloat(document.getElementById('prod-send-mt').value) || 0;
+  // We don't automatically save to todayAddedKgs until they click Send to Kotha
+}
+
+function sendGodownToKotha() {
+  const godownId = document.getElementById('prod-source-gd').value;
+  const dateVal = document.getElementById('prod-date').value;
+  const sendMt = parseFloat(document.getElementById('prod-send-mt').value) || 0;
+
+  if (!godownId) {
+    showToast('Please select a Source Godown first.', 'error');
+    return;
+  }
+
+  if (sendMt <= 0) {
+    showToast('Please enter a valid quantity to send.', 'error');
+    return;
+  }
+
+  let stock;
+  if (godownId === 'ALL_GODOWNS') {
+    stock = getAllGodownsClosingAtDate(dateVal);
+  } else {
+    stock = getGodownClosingAtDate(godownId, dateVal);
+  }
+
+  if (sendMt > stock.qty + 0.0001) {
+    showToast(`Warning: Sending more than available stock (${parseFloat(stock.qty).toFixed(3)} M.T.)`, 'info');
+  }
+
+  const kgs = sendMt * 1000;
+  todayAddedKgs = kgs;
+
+  document.getElementById('prod-added-val').innerText = Math.round(kgs).toLocaleString() + ' KGS';
+  
+  recalcKothaMetrics();
+  showToast(`Loaded ${Math.round(kgs).toLocaleString()} Kgs into today's Kotha stock!`, 'success');
+}
+
+function recalcKothaMetrics() {
+  const dateVal = document.getElementById('prod-date').value;
+  const openingStock = getKothaOpeningStock(dateVal);
+  const totalKothaStock = openingStock + todayAddedKgs;
+
+  let prodTotal = 0;
+  productionProducts.forEach((prod, index) => {
+    const kgsInput = document.getElementById(`modal-prod-kgs-${index}`);
+    if (kgsInput) {
+      prodTotal += parseFloat(kgsInput.value) || 0;
+    }
+  });
+
+  const closingKotha = totalKothaStock - prodTotal;
+
+  document.getElementById('prod-opening-val').innerText = Math.round(openingStock).toLocaleString() + ' KGS';
+  document.getElementById('prod-added-val').innerText = Math.round(todayAddedKgs).toLocaleString() + ' KGS';
+  document.getElementById('prod-total-kotha-val').innerText = Math.round(totalKothaStock).toLocaleString() + ' KGS';
+  
+  const balValEl = document.getElementById('prod-bal-val');
+  balValEl.innerText = Math.round(closingKotha).toLocaleString() + ' KGS';
+  if (closingKotha < 0) {
+    balValEl.style.color = 'var(--red)';
+  } else {
+    balValEl.style.color = 'var(--green)';
+  }
+
+  // Update modal metrics if elements exist
+  const mKotha = document.getElementById('modal-kotha-stock');
+  const mProd = document.getElementById('modal-prod-total');
+  const mBal = document.getElementById('modal-bal-kotha');
+  if (mKotha) mKotha.innerText = Math.round(totalKothaStock).toLocaleString() + ' KGS';
+  if (mProd) mProd.innerText = Math.round(prodTotal).toLocaleString() + ' KGS';
+  if (mBal) {
+    mBal.innerText = Math.round(closingKotha).toLocaleString() + ' KGS';
+    if (closingKotha < 0) {
+      mBal.style.color = 'var(--red)';
+    } else {
+      mBal.style.color = 'var(--green)';
+    }
+  }
+}
+
+function openProdModal() {
+  const runDate = document.getElementById('prod-date').value;
+  if (!runDate) {
+    showToast('Please select a production date.', 'error');
+    return;
+  }
+  
+  document.getElementById('prod-modal').style.display = 'flex';
+  renderModalProductsTable();
+  recalcKothaMetrics();
+}
+
+function closeProdModal() {
+  document.getElementById('prod-modal').style.display = 'none';
+}
+
+function renderModalProductsTable() {
+  const tbody = document.getElementById('modal-prod-tbody');
   tbody.innerHTML = '';
 
   productionProducts.forEach((prod, index) => {
@@ -1399,16 +1583,21 @@ function renderProductionProductsTable() {
     const inputBags = document.createElement('input');
     inputBags.type = 'number';
     inputBags.className = 'excel-input num';
-    inputBags.id = `prod-bags-${index}`;
+    inputBags.id = `modal-prod-bags-${index}`;
     inputBags.placeholder = '0';
     inputBags.oninput = () => {
-      // Auto-compute Kgs
       const bags = parseFloat(inputBags.value) || 0;
-      const inputKgs = document.getElementById(`prod-kgs-${index}`);
+      const inputKgs = document.getElementById(`modal-prod-kgs-${index}`);
       if (prod.multiplier > 1) {
-        inputKgs.value = bags * prod.multiplier;
+        inputKgs.value = Math.round(bags * prod.multiplier);
       }
-      calcProdBalances();
+      recalcKothaMetrics();
+    };
+    inputBags.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmProductionRun();
+      }
     };
     tdBags.appendChild(inputBags);
     row.appendChild(tdBags);
@@ -1418,10 +1607,16 @@ function renderProductionProductsTable() {
     const inputKgs = document.createElement('input');
     inputKgs.type = 'number';
     inputKgs.className = 'excel-input num';
-    inputKgs.id = `prod-kgs-${index}`;
+    inputKgs.id = `modal-prod-kgs-${index}`;
     inputKgs.placeholder = '0';
     inputKgs.oninput = () => {
-      calcProdBalances();
+      recalcKothaMetrics();
+    };
+    inputKgs.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmProductionRun();
+      }
     };
     tdKgs.appendChild(inputKgs);
     row.appendChild(tdKgs);
@@ -1437,127 +1632,48 @@ function renderProductionProductsTable() {
       e.preventDefault();
       inputBags.value = '';
       inputKgs.value = '';
-      calcProdBalances();
+      recalcKothaMetrics();
     };
     tdAction.appendChild(clearBtn);
     row.appendChild(tdAction);
 
     tbody.appendChild(row);
   });
-
-  calcProdBalances();
-}
-
-function onProdSourceGodownChange() {
-  const godownId = document.getElementById('prod-source-gd').value;
-  const dateVal = document.getElementById('prod-date').value;
-  const infoEl = document.getElementById('prod-source-stock-info');
-
-  if (!godownId) {
-    infoEl.innerText = 'Select a godown and click Send to Kotha';
-    return;
-  }
-
-  const stock = getGodownClosingAtDate(godownId, dateVal);
-  const gd = state.godowns.find(g => g.id === godownId);
-  infoEl.innerHTML = `<strong style="color:var(--saffron);">${gd.name}</strong> Closing Stock: <strong>${Math.round(stock.bags).toLocaleString()}</strong> Bags / <strong>${parseFloat(stock.qty).toFixed(3)}</strong> M.T.`;
-}
-
-function getGodownClosingAtDate(godownId, dateStr) {
-  const gd = state.godowns.find(g => g.id === godownId);
-  if (!gd) return { bags: 0, qty: 0 };
-  
-  const relevant = state.entries.filter(e => e.godownId === godownId && e.date <= dateStr);
-  if (relevant.length === 0) {
-    return { bags: parseFloat(gd.opBags) || 0, qty: parseFloat(gd.opQty) || 0 };
-  }
-  
-  // Sort relevant entries chronologically to find the last one.
-  relevant.sort((a, b) => b.date.localeCompare(a.date));
-  
-  return {
-    bags: parseFloat(relevant[0].closBags) || 0,
-    qty: parseFloat(relevant[0].closQty) || 0
-  };
-}
-
-function sendGodownToKotha() {
-  const godownId = document.getElementById('prod-source-gd').value;
-  const dateVal = document.getElementById('prod-date').value;
-
-  if (!godownId) {
-    showToast('Please select a Source Godown first.', 'error');
-    return;
-  }
-
-  const stock = getGodownClosingAtDate(godownId, dateVal);
-  // 1 M.T. = 1000 Kgs
-  const kgsStock = stock.qty * 1000;
-  
-  document.getElementById('prod-kotha-stock').value = Math.round(kgsStock);
-  showToast(`Loaded ${Math.round(kgsStock).toLocaleString()} Kgs from Godown Closing Stock.`, 'success');
-  
-  calcProdBalances();
-}
-
-function calcProdBalances() {
-  let totalKgs = 0;
-
-  productionProducts.forEach((prod, index) => {
-    const inputKgs = document.getElementById(`prod-kgs-${index}`);
-    if (inputKgs) {
-      totalKgs += parseFloat(inputKgs.value) || 0;
-    }
-  });
-
-  const kothaStock = parseFloat(document.getElementById('prod-kotha-stock').value) || 0;
-  const balKotha = kothaStock - totalKgs;
-
-  document.getElementById('prod-total-val').innerText = Math.round(totalKgs).toLocaleString() + ' KGS';
-  
-  const balValEl = document.getElementById('prod-bal-val');
-  balValEl.innerText = Math.round(balKotha).toLocaleString() + ' KGS';
-  
-  if (balKotha < 0) {
-    balValEl.style.color = 'var(--red-dark)';
-  } else {
-    balValEl.style.color = 'var(--text)';
-  }
 }
 
 function clearProdForm() {
-  document.getElementById('prod-kotha-stock').value = '0';
+  todayAddedKgs = 0;
+  document.getElementById('prod-send-mt').value = '';
   document.getElementById('prod-source-gd').value = '';
-  document.getElementById('prod-source-stock-info').innerText = 'Select a godown and click Send to Kotha';
+  document.getElementById('prod-source-stock-info').innerText = 'Select a godown and enter Qty to Send';
 
+  // Clear modal inputs
   productionProducts.forEach((prod, index) => {
-    const bagsInput = document.getElementById(`prod-bags-${index}`);
-    const kgsInput = document.getElementById(`prod-kgs-${index}`);
+    const bagsInput = document.getElementById(`modal-prod-bags-${index}`);
+    const kgsInput = document.getElementById(`modal-prod-kgs-${index}`);
     if (bagsInput) bagsInput.value = '';
     if (kgsInput) kgsInput.value = '';
   });
 
-  calcProdBalances();
+  recalcKothaMetrics();
 }
 
-async function submitProductionRun() {
+async function confirmProductionRun() {
   const userId = state.user.id;
   const runDate = document.getElementById('prod-date').value;
-  const kothaStock = parseFloat(document.getElementById('prod-kotha-stock').value) || 0;
+  
+  const openingStock = getKothaOpeningStock(runDate);
+  const qtyReceivedKgs = todayAddedKgs;
   const sourceGodownId = document.getElementById('prod-source-gd').value;
-
-  if (!runDate) {
-    showToast('Please select a production date.', 'error');
-    return;
-  }
+  const kothaStock = openingStock + qtyReceivedKgs;
 
   // Build items list
   const items = [];
   let productionTotal = 0;
 
   productionProducts.forEach((prod, index) => {
-    const bags = parseFloat(document.getElementById(`prod-bags-${index}`).value) || 0;
-    const kgs = parseFloat(document.getElementById(`prod-kgs-${index}`).value) || 0;
+    const bags = parseFloat(document.getElementById(`modal-prod-bags-${index}`).value) || 0;
+    const kgs = parseFloat(document.getElementById(`modal-prod-kgs-${index}`).value) || 0;
 
     if (bags > 0 || kgs > 0) {
       items.push({
@@ -1583,17 +1699,20 @@ async function submitProductionRun() {
       body: JSON.stringify({
         userId,
         runDate,
+        openingKothaStock: openingStock,
+        qtyReceivedKgs,
+        sourceGodownId: sourceGodownId || null,
         kothaStock,
         productionTotal,
         balanceKotha,
-        items,
-        sourceGodownId: sourceGodownId || null
+        items
       })
     });
 
     const data = await res.json();
     if (data.success) {
       showToast('Production Run recorded successfully!', 'success');
+      closeProdModal();
       clearProdForm();
       
       // Reload app data so that any auto-generated wheat consumption entries show up in the main ledger
@@ -1604,7 +1723,9 @@ async function submitProductionRun() {
         renderRecords();
       }
       
-      loadProductionHistory();
+      loadProductionHistory().then(() => {
+        onProdDateChange();
+      });
     } else {
       showToast(data.error || 'Failed to save production run.', 'error');
     }
@@ -1624,7 +1745,7 @@ async function loadProductionHistory() {
 
     tbody.innerHTML = '';
     if (prodRuns.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted)">No production runs recorded.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted)">No production runs recorded.</td></tr>`;
       return;
     }
 
@@ -1638,11 +1759,17 @@ async function loadProductionHistory() {
       // Tooltip/Expanded detail of items
       const itemsDetail = run.items.map(it => `${it.productName}: ${Math.round(it.bags)} Bags (${Math.round(it.kgs).toLocaleString()} Kgs)`).join('\n');
 
+      const opVal = parseFloat(run.openingKothaStock) || 0;
+      const recVal = parseFloat(run.qtyReceivedKgs) || 0;
+      const prodVal = parseFloat(run.productionTotal) || 0;
+      const closVal = parseFloat(run.balanceKotha) || 0;
+
       row.innerHTML = `
         <td style="font-weight:600; cursor:help;" title="${itemsDetail}">${dateStr} ℹ️</td>
-        <td class="num">${Math.round(run.kothaStock).toLocaleString()} KGS</td>
-        <td class="num" style="color:var(--saffron); font-weight:700;">${Math.round(run.productionTotal).toLocaleString()} KGS</td>
-        <td class="num" style="font-weight:600;">${Math.round(run.balanceKotha).toLocaleString()} KGS</td>
+        <td class="num">${Math.round(opVal).toLocaleString()} KGS</td>
+        <td class="num" style="color:var(--saffron);">${Math.round(recVal).toLocaleString()} KGS</td>
+        <td class="num" style="color:var(--primary); font-weight:700;">${Math.round(prodVal).toLocaleString()} KGS</td>
+        <td class="num" style="font-weight:600; color: ${closVal < 0 ? 'var(--red)' : 'var(--green)'}">${Math.round(closVal).toLocaleString()} KGS</td>
         <td style="text-align:center;">
           <button class="btn btn-danger btn-sm" onclick="deleteProdRun('${run.id}')" style="padding: 2px 8px;">Delete</button>
         </td>
@@ -1662,7 +1789,9 @@ async function deleteProdRun(runId) {
     const data = await res.json();
     if (data.success) {
       showToast('Production run deleted.', 'success');
-      loadProductionHistory();
+      loadProductionHistory().then(() => {
+        onProdDateChange();
+      });
     } else {
       showToast(data.error || 'Failed to delete.', 'error');
     }
