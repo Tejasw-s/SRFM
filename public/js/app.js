@@ -445,26 +445,6 @@ function renderRecords() {
 
   let filtered = [...state.entries];
 
-  // Inject Opening Records
-  state.godowns.forEach(g => {
-    if (parseFloat(g.opBags) !== 0 || parseFloat(g.opQty) !== 0 || g.opName) {
-      const opDate = g.opDate ? g.opDate.substring(0, 10) : '2000-01-01';
-      filtered.push({
-        isOpening: true,
-        id: 'op_' + g.id,
-        date: opDate,
-        godownId: g.id,
-        particulers: g.opName ? g.opName + ' (OPENING)' : 'OPENING STOCK',
-        issBags: 0,
-        issQty: 0,
-        recvBags: 0,
-        recvQty: 0,
-        closBags: parseFloat(g.opBags) || 0,
-        closQty: parseFloat(g.opQty) || 0
-      });
-    }
-  });
-
   // Apply filters
   if (fiGd) filtered = filtered.filter(e => e.godownId === fiGd);
   if (fiFr) filtered = filtered.filter(e => e.date >= fiFr);
@@ -552,13 +532,6 @@ function renderRecords() {
         <td class="num" style="font-weight: 600">${parseFloat(e.closBags).toLocaleString('en-IN')}</td>
         <td class="num" style="font-weight: 600">${parseFloat(e.closQty).toFixed(3)}</td>
         <td class="no-print">
-          ${e.isOpening ? `
-          <div class="row-actions">
-            <button class="action-btn" onclick="editOpeningStockRecord('${e.godownId}')" title="Edit Opening Stock">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z"/></svg>
-            </button>
-          </div>
-          ` : `
           <div class="row-actions">
             <button class="action-btn" onclick="openEditModal('${e.id}')" title="Edit">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z"/></svg>
@@ -567,7 +540,6 @@ function renderRecords() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
           </div>
-          `}
         </td>
       `;
       tbody.appendChild(tr);
