@@ -60,7 +60,7 @@ app.get('/api/godowns', async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      'SELECT id, name, op_bags as opBags, op_qty as opQty FROM godowns WHERE user_id = ? ORDER BY created_at ASC',
+      'SELECT id, name, op_bags as opBags, op_qty as opQty, op_date as opDate, op_name as opName FROM godowns WHERE user_id = ? ORDER BY created_at ASC',
       [userId]
     );
     res.json(rows);
@@ -124,9 +124,11 @@ app.post('/api/opstock', async (req, res) => {
     for (const [godownId, values] of Object.entries(opStock)) {
       const bags = parseFloat(values.bags) || 0;
       const qty = parseFloat(values.qty) || 0;
+      const date = values.date || null;
+      const name = values.name || '';
       await pool.query(
-        'UPDATE godowns SET op_bags = ?, op_qty = ? WHERE id = ? AND user_id = ?',
-        [bags, qty, godownId, userId]
+        'UPDATE godowns SET op_bags = ?, op_qty = ?, op_date = ?, op_name = ? WHERE id = ? AND user_id = ?',
+        [bags, qty, date, name, godownId, userId]
       );
     }
     res.json({ success: true });

@@ -47,6 +47,8 @@ async function initDB() {
         name VARCHAR(255) NOT NULL,
         op_bags DECIMAL(12,2) DEFAULT 0,
         op_qty DECIMAL(12,3) DEFAULT 0,
+        op_date DATE,
+        op_name VARCHAR(255),
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);

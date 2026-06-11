@@ -172,8 +172,24 @@
           </div>
           
           <div class="ph">
-            <h1 id="dash-title">Today's Summary</h1>
+            <h1 id="dash-title">Dashboard Summary</h1>
             <p id="dash-sub">Overall status of all godowns</p>
+          </div>
+          
+          <div class="card no-print" style="margin-bottom: 24px;">
+            <div class="filter-bar">
+              <div class="fg">
+                <label>From Date</label>
+                <input type="date" id="dash-fr" onchange="renderDashboard()">
+              </div>
+              <div class="fg">
+                <label>To Date</label>
+                <input type="date" id="dash-to" onchange="renderDashboard()">
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="document.getElementById('dash-fr').value=''; document.getElementById('dash-to').value=''; renderDashboard();" style="height: 38px;">
+                <span>Clear Filters</span>
+              </button>
+            </div>
           </div>
           
           <div class="metrics">

@@ -186,8 +186,13 @@ function getPrevClosing(godownId, beforeDateStr, excludeId = null) {
     };
   }
 
-  // Find godown opening stock
   const gdObj = state.godowns.find(g => g.id === godownId);
+  if (gdObj && gdObj.opDate) {
+    const opDateStr = gdObj.opDate.substring(0, 10);
+    // If we are asking for balance BEFORE the opening date, return 0.
+    if (beforeDateStr < opDateStr) return { bags: 0, qty: 0 };
+  }
+
   return {
     bags: gdObj ? parseFloat(gdObj.opBags) || 0 : 0,
     qty: gdObj ? parseFloat(gdObj.opQty) || 0 : 0
@@ -293,27 +298,88 @@ function showPage(pageId) {
 
 // ===== DASHBOARD RENDERING =====
 function renderDashboard() {
+  const fr = document.getElementById('dash-fr') ? document.getElementById('dash-fr').value : '';
+  const to = document.getElementById('dash-to') ? document.getElementById('dash-to').value : '';
+  
+  let dFr = fr || '0000-01-01';
+  let dTo = to || '9999-12-31';
+
+  // Get date before from date
+  let dayBeforeFr = '0000-01-01';
+  if (fr) {
+    const dObj = new Date(fr);
+    dObj.setDate(dObj.getDate() - 1);
+    dayBeforeFr = dObj.toISOString().split('T')[0];
+  } else {
+    // If no from date is provided, we want the opening stock of the godown as it originally was.
+    // getPrevClosing with 0000-01-01 will return 0 if the godown has an opDate.
+    // So we need to handle this below.
+  }
+
+  // Filter entries for the date range
+  const dashEntries = state.entries.filter(e => e.date >= dFr && e.date <= dTo);
+
   // Aggregate stats
   let totalIssB = 0;
   let totalIssQ = 0;
   let totalRecvB = 0;
   let totalRecvQ = 0;
 
-  state.entries.forEach(e => {
+  dashEntries.forEach(e => {
     totalIssB += parseFloat(e.issBags) || 0;
     totalIssQ += parseFloat(e.issQty) || 0;
     totalRecvB += parseFloat(e.recvBags) || 0;
     totalRecvQ += parseFloat(e.recvQty) || 0;
   });
 
-  // Calculate closing bags / quantity across all godowns
+  // Render godown-wise table
+  const tbody = document.getElementById('dash-gd-tbody');
+  tbody.innerHTML = '';
+  
   let currentClosB = 0;
   let currentClosQ = 0;
   
   state.godowns.forEach(g => {
-    const latestStock = getPrevClosing(g.id, '9999-12-31'); // Fetch final closing stock
-    currentClosB += latestStock.bags;
-    currentClosQ += latestStock.qty;
+    // Op. Bags for the table
+    let opBags = parseFloat(g.opBags) || 0;
+    let opQty = parseFloat(g.opQty) || 0;
+    
+    if (fr) {
+      const prev = getPrevClosing(g.id, dayBeforeFr);
+      opBags = prev.bags;
+      opQty = prev.qty;
+    }
+
+    // Filter entries for this godown in range
+    const gEntries = dashEntries.filter(e => e.godownId === g.id);
+    
+    let issB = 0, issQ = 0, recvB = 0, recvQ = 0;
+    gEntries.forEach(e => {
+      issB += parseFloat(e.issBags) || 0;
+      issQ += parseFloat(e.issQty) || 0;
+      recvB += parseFloat(e.recvBags) || 0;
+      recvQ += parseFloat(e.recvQty) || 0;
+    });
+
+    const cb = opBags + recvB - issB;
+    const cq = opQty + recvQ - issQ;
+
+    currentClosB += cb;
+    currentClosQ += cq;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight: 600; color: var(--text)">${g.name}</td>
+      <td class="num">${opBags.toLocaleString('en-IN')}</td>
+      <td class="num">${opQty.toFixed(3)}</td>
+      <td class="num" style="color: var(--saffron)">${issB.toLocaleString('en-IN')}</td>
+      <td class="num" style="color: var(--saffron)">${issQ.toFixed(3)}</td>
+      <td class="num" style="color: var(--green)">${recvB.toLocaleString('en-IN')}</td>
+      <td class="num" style="color: var(--green)">${recvQ.toFixed(3)}</td>
+      <td class="num" style="font-weight: 700; color: var(--primary)">${cb.toLocaleString('en-IN')}</td>
+      <td class="num" style="font-weight: 700; color: var(--primary)">${cq.toFixed(3)}</td>
+    `;
+    tbody.appendChild(tr);
   });
 
   // Write values to cards
@@ -324,38 +390,6 @@ function renderDashboard() {
   document.getElementById('mv-clos-b').innerText = currentClosB.toLocaleString('en-IN');
   document.getElementById('mv-clos-q').innerText = currentClosQ.toFixed(3);
 
-  // Render godown-wise table
-  const tbody = document.getElementById('dash-gd-tbody');
-  tbody.innerHTML = '';
-  
-  state.godowns.forEach(g => {
-    // Filter entries for this godown
-    const gEntries = state.entries.filter(e => e.godownId === g.id);
-    
-    let issB = 0, issQ = 0, recvB = 0, recvQ = 0;
-    gEntries.forEach(e => {
-      issB += parseFloat(e.issBags) || 0;
-      issQ += parseFloat(e.issQty) || 0;
-      recvB += parseFloat(e.recvBags) || 0;
-      recvQ += parseFloat(e.recvQty) || 0;
-    });
-
-    const finalStock = getPrevClosing(g.id, '9999-12-31');
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="font-weight: 600; color: var(--text)">${g.name}</td>
-      <td class="num">${parseFloat(g.opBags).toLocaleString('en-IN')}</td>
-      <td class="num">${parseFloat(g.opQty).toFixed(3)}</td>
-      <td class="num" style="color: var(--saffron)">${issB.toLocaleString('en-IN')}</td>
-      <td class="num" style="color: var(--saffron)">${issQ.toFixed(3)}</td>
-      <td class="num" style="color: var(--green)">${recvB.toLocaleString('en-IN')}</td>
-      <td class="num" style="color: var(--green)">${recvQ.toFixed(3)}</td>
-      <td class="num" style="font-weight: 700; color: var(--primary)">${finalStock.bags.toLocaleString('en-IN')}</td>
-      <td class="num" style="font-weight: 700; color: var(--primary)">${finalStock.qty.toFixed(3)}</td>
-    `;
-    tbody.appendChild(tr);
-  });
 
   // Recent 10 entries
   const recentTbody = document.getElementById('recent-tbody');
@@ -900,13 +934,22 @@ function renderOpStockForm() {
   state.godowns.forEach(g => {
     const div = document.createElement('div');
     div.style.display = 'grid';
-    div.style.gridTemplateColumns = '2fr 1fr 1.2fr';
+    div.style.gridTemplateColumns = '1fr 1.5fr 1fr 1fr 1fr';
     div.style.gap = '10px';
     div.style.marginBottom = '12px';
     div.style.alignItems = 'center';
 
+    const opDateVal = g.opDate ? g.opDate.substring(0, 10) : '';
+    const opNameVal = g.opName || '';
+
     div.innerHTML = `
       <div style="font-weight:600; font-size:14px; color: var(--text-secondary)">${g.name}</div>
+      <div>
+        <input type="date" id="op-d-${g.id}" value="${opDateVal}" style="padding: 6px 10px;">
+      </div>
+      <div>
+        <input type="text" id="op-n-${g.id}" value="${opNameVal}" placeholder="Particulers" style="padding: 6px 10px;">
+      </div>
       <div>
         <input type="number" id="op-b-${g.id}" value="${g.opBags}" placeholder="Bags" min="0" style="padding: 6px 10px;">
       </div>
@@ -922,9 +965,11 @@ async function saveOpStock() {
   const opStock = {};
   
   state.godowns.forEach(g => {
+    const date = document.getElementById(`op-d-${g.id}`).value;
+    const name = document.getElementById(`op-n-${g.id}`).value.trim();
     const bags = parseFloat(document.getElementById(`op-b-${g.id}`).value) || 0;
     const qty = parseFloat(document.getElementById(`op-q-${g.id}`).value) || 0;
-    opStock[g.id] = { bags, qty };
+    opStock[g.id] = { bags, qty, date, name };
   });
 
   try {
