@@ -1401,6 +1401,9 @@ function onProdDateChange() {
   
   // Recalculate metrics
   recalcKothaMetrics();
+
+  // Update Daily Output Breakdown table
+  updateDailyBreakdownTable();
 }
 
 function onProdSourceGodownChange() {
@@ -1746,6 +1749,7 @@ async function loadProductionHistory() {
     tbody.innerHTML = '';
     if (prodRuns.length === 0) {
       tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted)">No production runs recorded.</td></tr>`;
+      updateDailyBreakdownTable();
       return;
     }
 
@@ -1776,9 +1780,73 @@ async function loadProductionHistory() {
       `;
       tbody.appendChild(row);
     });
+
+    updateDailyBreakdownTable();
   } catch (err) {
     console.error('Load production history error', err);
   }
+}
+
+function updateDailyBreakdownTable() {
+  const dateVal = document.getElementById('prod-date').value;
+  const tbody = document.getElementById('daily-breakdown-tbody');
+  if (!tbody) return;
+
+  // Find if there is a run for this date
+  const run = prodRuns.find(r => r.runDate === dateVal);
+  
+  // Set title
+  const titleEl = document.getElementById('daily-breakdown-title');
+  if (titleEl) {
+    const formattedDate = new Date(dateVal).toLocaleDateString('en-GB');
+    titleEl.innerText = `Production Output Breakdown (${formattedDate})`;
+  }
+
+  tbody.innerHTML = '';
+  productionProducts.forEach(prod => {
+    const row = document.createElement('tr');
+    
+    // Product Name
+    const tdName = document.createElement('td');
+    tdName.innerText = prod.name;
+    tdName.style.fontWeight = '600';
+    row.appendChild(tdName);
+
+    // Pack Size
+    const tdPack = document.createElement('td');
+    tdPack.innerText = prod.multiplier > 1 ? `${prod.multiplier} Kgs` : '—';
+    tdPack.style.color = 'var(--text-muted)';
+    row.appendChild(tdPack);
+
+    // Bags
+    const tdBags = document.createElement('td');
+    tdBags.className = 'num';
+    tdBags.style.fontWeight = '600';
+    
+    // Kgs
+    const tdKgs = document.createElement('td');
+    tdKgs.className = 'num';
+    tdKgs.style.fontWeight = '700';
+    tdKgs.style.color = 'var(--primary)';
+
+    if (run) {
+      const item = run.items.find(it => it.productName === prod.name);
+      if (item && (item.bags > 0 || item.kgs > 0)) {
+        tdBags.innerText = Math.round(item.bags).toLocaleString();
+        tdKgs.innerText = Math.round(item.kgs).toLocaleString() + ' KGS';
+      } else {
+        tdBags.innerText = '';
+        tdKgs.innerText = '';
+      }
+    } else {
+      tdBags.innerText = '';
+      tdKgs.innerText = '';
+    }
+
+    row.appendChild(tdBags);
+    row.appendChild(tdKgs);
+    tbody.appendChild(row);
+  });
 }
 
 async function deleteProdRun(runId) {
