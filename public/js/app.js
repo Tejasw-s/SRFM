@@ -148,7 +148,7 @@ function populateDropdowns() {
     // Clear and build options
     select.innerHTML = '';
     
-    if (fieldId === 'fi-gd' || fieldId === 'ed-fi-gd') {
+    if (fieldId === 'fi-gd' || fieldId === 'ed-fi-gd' || fieldId === 'ri-gd') {
       const allOpt = document.createElement('option');
       allOpt.value = '';
       allOpt.innerText = 'All Godowns';
@@ -721,14 +721,15 @@ function renderReport() {
   const riFr = document.getElementById('ri-fr').value;
   const riTo = document.getElementById('ri-to').value;
 
-  if (!riGd) {
+  if (state.godowns.length === 0) {
     document.getElementById('rep-empty').style.display = 'block';
     document.getElementById('rep-empty').innerText = 'No godowns found. Please add a godown first.';
     return;
   }
 
   // Filter entries for selected godown in date range
-  let filtered = state.entries.filter(e => e.godownId === riGd);
+  let filtered = state.entries;
+  if (riGd) filtered = filtered.filter(e => e.godownId === riGd);
   if (riFr) filtered = filtered.filter(e => e.date >= riFr);
   if (riTo) filtered = filtered.filter(e => e.date <= riTo);
 
@@ -749,15 +750,28 @@ function renderReport() {
     dObj.setDate(dObj.getDate() - 1);
     dayBeforeFr = dObj.toISOString().split('T')[0];
   }
-  const prev = getPrevClosing(riGd, dayBeforeFr);
-  let finalB = prev.bags;
-  let finalQ = prev.qty;
+  
+  let finalB = 0;
+  let finalQ = 0;
+
+  if (riGd) {
+    const prev = getPrevClosing(riGd, dayBeforeFr);
+    finalB = prev.bags;
+    finalQ = prev.qty;
+  } else {
+    // If All Godowns, calculate sum of opening balances
+    state.godowns.forEach(g => {
+      const p = getPrevClosing(g.id, dayBeforeFr);
+      finalB += p.bags;
+      finalQ += p.qty;
+    });
+  }
 
   // Always show the Opening Balance row for ledger clarity
   const trOp = document.createElement('tr');
   trOp.innerHTML = `
     <td style="font-weight: 600">${riFr ? formatDateString(riFr) : 'Opening'}</td>
-    <td>${state.godowns.find(g => g.id === riGd)?.name || 'Unknown'}</td>
+    <td>${riGd ? (state.godowns.find(g => g.id === riGd)?.name || 'Unknown') : 'All Godowns'}</td>
     <td><em>Opening Balance</em></td>
     <td class="num" style="color: var(--saffron)">0</td>
     <td class="num" style="color: var(--saffron)">0.000</td>
@@ -772,31 +786,51 @@ function renderReport() {
     empty.style.display = 'block';
     empty.innerText = 'No records match search parameters.';
   } else {
+    let currentBalB = finalB;
+    let currentBalQ = finalQ;
+
     filtered.forEach(e => {
       const g = state.godowns.find(gd => gd.id === e.godownId);
-      totIssB += parseFloat(e.issBags) || 0;
-      totIssQ += parseFloat(e.issQty) || 0;
-      totRecvB += parseFloat(e.recvBags) || 0;
-      totRecvQ += parseFloat(e.recvQty) || 0;
+      const issB = parseFloat(e.issBags) || 0;
+      const issQ = parseFloat(e.issQty) || 0;
+      const recvB = parseFloat(e.recvBags) || 0;
+      const recvQ = parseFloat(e.recvQty) || 0;
+
+      totIssB += issB;
+      totIssQ += issQ;
+      totRecvB += recvB;
+      totRecvQ += recvQ;
+
+      let rowClosB, rowClosQ;
+      if (riGd) {
+        rowClosB = parseFloat(e.closBags) || 0;
+        rowClosQ = parseFloat(e.closQty) || 0;
+        currentBalB = rowClosB;
+        currentBalQ = rowClosQ;
+      } else {
+        currentBalB = currentBalB + recvB - issB;
+        currentBalQ = currentBalQ + recvQ - issQ;
+        rowClosB = currentBalB;
+        rowClosQ = currentBalQ;
+      }
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td style="font-weight: 600">${formatDateString(e.date)}</td>
         <td>${g ? g.name : 'Unknown'}</td>
         <td>${e.particulers || '—'}</td>
-        <td class="num" style="color: var(--saffron)">${parseFloat(e.issBags).toLocaleString('en-IN')}</td>
-        <td class="num" style="color: var(--saffron)">${parseFloat(e.issQty).toFixed(3)}</td>
-        <td class="num" style="color: var(--green)">${parseFloat(e.recvBags).toLocaleString('en-IN')}</td>
-        <td class="num" style="color: var(--green)">${parseFloat(e.recvQty).toFixed(3)}</td>
-        <td class="num" style="font-weight: 600">${parseFloat(e.closBags).toLocaleString('en-IN')}</td>
-        <td class="num" style="font-weight: 600">${parseFloat(e.closQty).toFixed(3)}</td>
+        <td class="num" style="color: var(--saffron)">${issB.toLocaleString('en-IN')}</td>
+        <td class="num" style="color: var(--saffron)">${issQ.toFixed(3)}</td>
+        <td class="num" style="color: var(--green)">${recvB.toLocaleString('en-IN')}</td>
+        <td class="num" style="color: var(--green)">${recvQ.toFixed(3)}</td>
+        <td class="num" style="font-weight: 600">${rowClosB.toLocaleString('en-IN')}</td>
+        <td class="num" style="font-weight: 600">${rowClosQ.toFixed(3)}</td>
       `;
       tbody.appendChild(tr);
     });
 
-    const lastEntry = filtered[filtered.length - 1];
-    finalB = parseFloat(lastEntry.closBags) || 0;
-    finalQ = parseFloat(lastEntry.closQty) || 0;
+    finalB = currentBalB;
+    finalQ = currentBalQ;
   }
 
   // Set metrics
