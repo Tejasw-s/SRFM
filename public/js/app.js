@@ -406,11 +406,20 @@ function renderDashboard() {
     recentEmpty.style.display = 'none';
     sorted.forEach(e => {
       const g = state.godowns.find(gd => gd.id === e.godownId);
+      const dObj = new Date(e.date + 'T00:00:00');
+      const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dObj.getDay()];
+      
+      const rowOpBags = parseFloat(e.closBags) + parseFloat(e.issBags) - parseFloat(e.recvBags);
+      const rowOpQty = parseFloat(e.closQty) + parseFloat(e.issQty) - parseFloat(e.recvQty);
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td style="font-weight: 600">${formatDateString(e.date)}</td>
+        <td style="font-size: 13px; color: var(--text-muted)">${dayName}</td>
         <td>${g ? g.name : 'Unknown'}</td>
         <td>${e.particulers || '—'}</td>
+        <td class="num">${rowOpBags.toLocaleString('en-IN')}</td>
+        <td class="num">${rowOpQty.toFixed(3)}</td>
         <td class="num" style="color: var(--saffron)">${parseFloat(e.issBags).toLocaleString('en-IN')}</td>
         <td class="num" style="color: var(--saffron)">${parseFloat(e.issQty).toFixed(3)}</td>
         <td class="num" style="color: var(--green)">${parseFloat(e.recvBags).toLocaleString('en-IN')}</td>
@@ -543,7 +552,13 @@ function renderRecords() {
         <td class="num" style="font-weight: 600">${parseFloat(e.closBags).toLocaleString('en-IN')}</td>
         <td class="num" style="font-weight: 600">${parseFloat(e.closQty).toFixed(3)}</td>
         <td class="no-print">
-          ${e.isOpening ? '' : `
+          ${e.isOpening ? `
+          <div class="row-actions">
+            <button class="action-btn" onclick="editOpeningStockRecord('${e.godownId}')" title="Edit Opening Stock">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z"/></svg>
+            </button>
+          </div>
+          ` : `
           <div class="row-actions">
             <button class="action-btn" onclick="openEditModal('${e.id}')" title="Edit">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z"/></svg>
@@ -996,6 +1011,31 @@ async function deleteGodown(godownId) {
 }
 
 // ===== OPENING STOCK EDITING =====
+
+window.editOpeningStockRecord = function(godownId) {
+  showPage('page-entry');
+  const input = document.getElementById('op-n-' + godownId);
+  if (input) {
+    input.focus();
+    input.parentElement.parentElement.style.transition = 'background 0.5s';
+    input.parentElement.parentElement.style.background = 'var(--blue-light)';
+    setTimeout(() => {
+      input.parentElement.parentElement.style.background = 'transparent';
+    }, 1500);
+  } else {
+    // If not rendered yet, wait a tiny bit
+    setTimeout(() => {
+      const retryInput = document.getElementById('op-n-' + godownId);
+      if (retryInput) {
+        retryInput.focus();
+        retryInput.parentElement.parentElement.style.transition = 'background 0.5s';
+        retryInput.parentElement.parentElement.style.background = 'var(--blue-light)';
+        setTimeout(() => retryInput.parentElement.parentElement.style.background = 'transparent', 1500);
+      }
+    }, 200);
+  }
+};
+
 function renderOpStockForm() {
   const container = document.getElementById('op-form');
   container.innerHTML = '';
