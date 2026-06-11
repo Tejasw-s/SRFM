@@ -187,11 +187,6 @@ function getPrevClosing(godownId, beforeDateStr, excludeId = null) {
   }
 
   const gdObj = state.godowns.find(g => g.id === godownId);
-  if (gdObj && gdObj.opDate) {
-    const opDateStr = gdObj.opDate.substring(0, 10);
-    // If we are asking for balance BEFORE the opening date, return 0.
-    if (beforeDateStr < opDateStr) return { bags: 0, qty: 0 };
-  }
 
   return {
     bags: gdObj ? parseFloat(gdObj.opBags) || 0 : 0,
