@@ -1363,6 +1363,12 @@ function initProductionPage() {
     dateInput.value = new Date().toISOString().split('T')[0];
   }
 
+  // Set initial value for breakdown date filter
+  const breakdownFilter = document.getElementById('breakdown-date-filter');
+  if (breakdownFilter) {
+    breakdownFilter.value = dateInput.value;
+  }
+
   // Populate source godown dropdown
   const select = document.getElementById('prod-source-gd');
   select.innerHTML = `
@@ -1401,6 +1407,12 @@ function onProdDateChange() {
   
   // Recalculate metrics
   recalcKothaMetrics();
+
+  // Sync breakdown date filter with main date
+  const breakdownFilter = document.getElementById('breakdown-date-filter');
+  if (breakdownFilter) {
+    breakdownFilter.value = dateVal;
+  }
 
   // Update Daily Output Breakdown table
   updateDailyBreakdownTable();
@@ -1787,8 +1799,14 @@ async function loadProductionHistory() {
   }
 }
 
+function onBreakdownDateFilterChange() {
+  updateDailyBreakdownTable();
+}
+
 function updateDailyBreakdownTable() {
-  const dateVal = document.getElementById('prod-date').value;
+  const filterEl = document.getElementById('breakdown-date-filter');
+  if (!filterEl) return;
+  const dateVal = filterEl.value;
   const tbody = document.getElementById('daily-breakdown-tbody');
   if (!tbody) return;
 

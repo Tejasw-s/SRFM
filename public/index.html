@@ -798,9 +798,15 @@
 
           <!-- Daily Production Output Breakdown -->
           <div class="card" id="daily-breakdown-card" style="margin-top: 20px;">
-            <div class="card-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              <span id="daily-breakdown-title">Daily Production Output</span>
+            <div class="card-title" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span id="daily-breakdown-title">Production Output Breakdown</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Filter Date:</span>
+                <input type="date" id="breakdown-date-filter" class="excel-input" style="width: 150px; font-weight: 600;" onchange="onBreakdownDateFilterChange()">
+              </div>
             </div>
             
             <div class="table-wrap excel-table-wrap" style="margin-top: 15px; max-height: 400px; overflow-y: auto;">
