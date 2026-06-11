@@ -117,6 +117,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           <span id="bn-records-lbl">Records</span>
         </button>
+        <button class="bnav-btn" id="bn-production" onclick="showPage('production')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span id="bn-production-lbl">Production</span>
+        </button>
         <button class="bnav-btn" id="bn-report" onclick="showPage('report')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           <span id="bn-report-lbl">Report</span>
@@ -145,6 +149,10 @@
           <div class="sidebar-item" id="sb-records" onclick="showPage('records')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <span id="sb-records-lbl">All Records</span>
+          </div>
+          <div class="sidebar-item" id="sb-production" onclick="showPage('production')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span id="sb-production-lbl">Production</span>
           </div>
           <div class="sidebar-item" id="sb-report" onclick="showPage('report')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -711,6 +719,115 @@
                 </thead>
                 <tbody id="excel-tbody">
                   <!-- Rows will be injected here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== PRODUCTION PAGE ===== -->
+        <div class="page-section" id="page-production">
+          <div class="ph">
+            <h1>Production & Kotha Management</h1>
+            <p>Track wheat processing (Kotha) and output items (Maida, Sooji, Atta, Bran, etc.)</p>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              <span>Kotha Stock Setup</span>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; align-items: end; margin-bottom: 20px; flex-wrap: wrap;">
+              <div class="form-group">
+                <label>Production Date</label>
+                <input type="date" id="prod-date">
+              </div>
+              <div class="form-group">
+                <label>Source Godown (for Wheat Closing Stock)</label>
+                <select id="prod-source-gd" onchange="onProdSourceGodownChange()">
+                  <!-- Options will be populated here -->
+                </select>
+              </div>
+              <div>
+                <button class="btn btn-outline" id="btn-send-to-kotha" onclick="sendGodownToKotha()" style="width: 100%; height: 42px; font-weight: 600;">
+                  Send to Kotha ➜
+                </button>
+              </div>
+            </div>
+
+            <div class="metrics" style="margin-top: 20px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+              <div class="mc or">
+                <div class="m-lbl">KOTHA STOCK (KGS)</div>
+                <div class="m-val" style="margin-top: 5px;">
+                  <input type="number" id="prod-kotha-stock" value="0" oninput="calcProdBalances()" style="width: 100%; font-size: 20px; font-weight: 700; border: none; border-bottom: 2px dashed var(--orange-dark); background: transparent; padding: 2px 5px; color: var(--orange-dark); text-align: center;">
+                </div>
+                <div class="m-desc" id="prod-source-stock-info">Available wheat stock in Kotha</div>
+              </div>
+              <div class="mc sa">
+                <div class="m-lbl">PRODUCTION TOTAL (KGS)</div>
+                <div class="m-val" id="prod-total-val" style="font-size: 24px;">0</div>
+                <div class="m-desc">Total output items produced</div>
+              </div>
+              <div class="mc gr">
+                <div class="m-lbl">BAL KOTHA (KGS)</div>
+                <div class="m-val" id="prod-bal-val" style="font-size: 24px;">0</div>
+                <div class="m-desc">Balance wheat in Kotha</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="padding: 0; overflow: hidden; margin-top: 20px;">
+            <div class="card-title" style="padding: 15px 20px 0 20px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span>Production Output (Items)</span>
+            </div>
+            
+            <div class="table-wrap excel-table-wrap" style="margin-top: 15px;">
+              <table class="excel-table">
+                <thead>
+                  <tr>
+                    <th>Product Name</th>
+                    <th>Pack Size</th>
+                    <th class="num" style="width: 120px;">Bags</th>
+                    <th class="num" style="width: 150px;">Kgs</th>
+                    <th style="width: 80px; text-align: center;">Clear</th>
+                  </tr>
+                </thead>
+                <tbody id="prod-tbody">
+                  <!-- Product rows will be dynamically generated here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 15px;">
+            <button class="btn btn-outline" onclick="clearProdForm()">Clear Form</button>
+            <button class="btn btn-primary" onclick="submitProductionRun()">Send to Production ➜</button>
+          </div>
+
+          <!-- Production History Section -->
+          <div class="card" style="margin-top: 30px;">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span>Production Runs History</span>
+            </div>
+            
+            <div class="table-wrap excel-table-wrap" style="margin-top: 15px; overflow-x: auto;">
+              <table class="excel-table">
+                <thead>
+                  <tr>
+                    <th>Run Date</th>
+                    <th class="num">Kotha Stock (Kgs)</th>
+                    <th class="num">Production Total (Kgs)</th>
+                    <th class="num">Balance Kotha (Kgs)</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="prod-history-tbody">
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-muted)">No production runs recorded.</td>
+                  </tr>
                 </tbody>
               </table>
             </div>

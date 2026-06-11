@@ -73,6 +73,31 @@ async function initDB() {
       );
     `);
 
+    // 4. Create production_runs table
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS production_runs (
+        id VARCHAR(50) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        run_date DATE NOT NULL,
+        kotha_stock DECIMAL(12,2) DEFAULT 0,
+        production_total DECIMAL(12,2) DEFAULT 0,
+        balance_kotha DECIMAL(12,2) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // 5. Create production_items table
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS production_items (
+        id VARCHAR(50) PRIMARY KEY,
+        run_id VARCHAR(50) NOT NULL,
+        product_name VARCHAR(255) NOT NULL,
+        bags DECIMAL(12,2) DEFAULT 0,
+        kgs DECIMAL(12,2) DEFAULT 0,
+        FOREIGN KEY (run_id) REFERENCES production_runs(id) ON DELETE CASCADE
+      );
+    `);
+
     console.log('Tables verified/created.');
 
     // Seed default users

@@ -12,6 +12,20 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Auto-initialize database on first request
+let dbInitialized = false;
+app.use(async (req, res, next) => {
+  if (!dbInitialized) {
+    try {
+      await initDB();
+      dbInitialized = true;
+    } catch (err) {
+      console.error('Database initialization failed on request:', err);
+    }
+  }
+  next();
+});
+
 // Authentication
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
@@ -268,6 +282,139 @@ app.delete('/api/entries/:id', async (req, res) => {
   } catch (err) {
     console.error('Delete entry error:', err);
     res.status(500).json({ error: 'Server error deleting entry.' });
+  }
+});
+
+// Production Runs API
+app.get('/api/production', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+
+  try {
+    const [runs] = await pool.query(
+      'SELECT id, run_date as runDate, kotha_stock as kothaStock, production_total as productionTotal, balance_kotha as balanceKotha, created_at as createdAt FROM production_runs WHERE user_id = ? ORDER BY run_date DESC, created_at DESC',
+      [userId]
+    );
+
+    // Map and fetch items for each run
+    const results = [];
+    for (const run of runs) {
+      const [items] = await pool.query(
+        'SELECT product_name as productName, bags, kgs FROM production_items WHERE run_id = ?',
+        [run.id]
+      );
+      results.push({
+        ...run,
+        items
+      });
+    }
+
+    res.json(results);
+  } catch (err) {
+    console.error('Fetch production runs error:', err);
+    res.status(500).json({ error: 'Server error fetching production history.' });
+  }
+});
+
+app.post('/api/production', async (req, res) => {
+  const {
+    userId, runDate, kothaStock, productionTotal, balanceKotha, items, sourceGodownId
+  } = req.body;
+
+  if (!userId || !runDate || !items) {
+    return res.status(400).json({ error: 'userId, runDate, and items are required' });
+  }
+
+  const runId = 'pr_' + crypto.randomUUID();
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    // 1. Insert production run
+    await conn.query(
+      `INSERT INTO production_runs (id, user_id, run_date, kotha_stock, production_total, balance_kotha)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [runId, userId, runDate, parseFloat(kothaStock) || 0, parseFloat(productionTotal) || 0, parseFloat(balanceKotha) || 0]
+    );
+
+    // 2. Insert items
+    for (const item of items) {
+      if (parseFloat(item.bags) > 0 || parseFloat(item.kgs) > 0) {
+        const itemId = 'pi_' + crypto.randomUUID();
+        await conn.query(
+          `INSERT INTO production_items (id, run_id, product_name, bags, kgs)
+           VALUES (?, ?, ?, ?, ?)`,
+          [itemId, runId, item.productName, parseFloat(item.bags) || 0, parseFloat(item.kgs) || 0]
+        );
+      }
+    }
+
+    // 3. If source godown was selected, auto-create a ledger entry for wheat consumption
+    if (sourceGodownId) {
+      const entryId = 'e_' + crypto.randomUUID();
+      const issQtyMt = (parseFloat(productionTotal) || 0) / 1000.0;
+      
+      // We calculate closing stock for the entry
+      // We first query the latest entry before this run date to get its closing balance
+      const [prior] = await conn.query(
+        `SELECT clos_bags, clos_qty FROM entries 
+         WHERE user_id = ? AND godown_id = ? AND entry_date <= ? 
+         ORDER BY entry_date DESC, id DESC LIMIT 1`,
+        [userId, sourceGodownId, runDate]
+      );
+      
+      let prevB = 0;
+      let prevQ = 0;
+      if (prior.length > 0) {
+        prevB = parseFloat(prior[0].clos_bags) || 0;
+        prevQ = parseFloat(prior[0].clos_qty) || 0;
+      } else {
+        // Fallback to opening stock
+        const [gd] = await conn.query(
+          `SELECT op_bags, op_qty FROM godowns WHERE id = ?`,
+          [sourceGodownId]
+        );
+        if (gd.length > 0) {
+          prevB = parseFloat(gd[0].op_bags) || 0;
+          prevQ = parseFloat(gd[0].op_qty) || 0;
+        }
+      }
+
+      const closB = Math.max(0, prevB - 0); // Bags issued is 0 by default for bulk wheat
+      const closQ = Math.max(0, prevQ - issQtyMt);
+
+      await conn.query(
+        `INSERT INTO entries 
+        (id, user_id, godown_id, entry_date, particulers, iss_bags, iss_qty, recv_bags, recv_qty, clos_bags, clos_qty, remarks)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          entryId, userId, sourceGodownId, runDate, 'WHEAT CONSUMPTION (PRODUCTION)',
+          0, issQtyMt, 0, 0, closB, closQ, `Auto-generated from Production Run ${runDate}`
+        ]
+      );
+    }
+
+    await conn.commit();
+    res.json({ success: true, runId });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Create production run error:', err);
+    res.status(500).json({ error: 'Server error saving production run.' });
+  } finally {
+    conn.release();
+  }
+});
+
+app.delete('/api/production/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await pool.query('DELETE FROM production_runs WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete production run error:', err);
+    res.status(500).json({ error: 'Server error deleting production run.' });
   }
 });
 
