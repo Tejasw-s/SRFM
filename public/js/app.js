@@ -525,12 +525,17 @@ function renderRecords() {
       totalRecvB += parseFloat(e.recvBags) || 0;
       totalRecvQ += parseFloat(e.recvQty) || 0;
 
+      const rowOpBags = parseFloat(e.closBags) + parseFloat(e.issBags) - parseFloat(e.recvBags);
+      const rowOpQty = parseFloat(e.closQty) + parseFloat(e.issQty) - parseFloat(e.recvQty);
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td style="font-weight: 600">${formatDateString(e.date)}</td>
         <td style="font-size: 13px; color: var(--text-muted)">${dayName}</td>
         <td>${g ? g.name : 'Unknown'}</td>
         <td>${e.particulers || '—'}</td>
+        <td class="num">${rowOpBags.toLocaleString('en-IN')}</td>
+        <td class="num">${rowOpQty.toFixed(3)}</td>
         <td class="num" style="color: var(--saffron)">${parseFloat(e.issBags).toLocaleString('en-IN')}</td>
         <td class="num" style="color: var(--saffron)">${parseFloat(e.issQty).toFixed(3)}</td>
         <td class="num" style="color: var(--green)">${parseFloat(e.recvBags).toLocaleString('en-IN')}</td>
