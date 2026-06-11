@@ -1013,7 +1013,7 @@ async function deleteGodown(godownId) {
 // ===== OPENING STOCK EDITING =====
 
 window.editOpeningStockRecord = function(godownId) {
-  showPage('page-entry');
+  showPage('entry');
   const input = document.getElementById('op-n-' + godownId);
   if (input) {
     input.focus();
