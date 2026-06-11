@@ -139,7 +139,7 @@ async function loadAppData() {
 }
 
 function populateDropdowns() {
-  const dropFields = ['f-godown', 'fi-gd', 'ri-gd', 'e-gd'];
+  const dropFields = ['f-godown', 'fi-gd', 'ri-gd', 'e-gd', 'ed-fi-gd'];
   
   dropFields.forEach(fieldId => {
     const select = document.getElementById(fieldId);
@@ -148,7 +148,7 @@ function populateDropdowns() {
     // Clear and build options
     select.innerHTML = '';
     
-    if (fieldId === 'fi-gd') {
+    if (fieldId === 'fi-gd' || fieldId === 'ed-fi-gd') {
       const allOpt = document.createElement('option');
       allOpt.value = '';
       allOpt.innerText = 'All Godowns';
@@ -291,6 +291,11 @@ function showPage(pageId) {
     document.getElementById('ri-fr').value = `${y}-${m}-01`;
     document.getElementById('ri-to').value = new Date().toISOString().split('T')[0];
     renderReport();
+  } else if (pageId === 'edit-data') {
+    if (!document.getElementById('ed-fi-date').value) {
+      document.getElementById('ed-fi-date').value = new Date().toISOString().split('T')[0];
+    }
+    renderExcelData();
   } else if (pageId === 'godowns') {
     renderGodownsList();
   }
@@ -397,7 +402,7 @@ function renderDashboard() {
   recentTbody.innerHTML = '';
   
   // Sort entries descending
-  const sorted = [...state.entries].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 10);
+  const sorted = [...dashEntries].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 10);
   
   if (sorted.length === 0) {
     recentEmpty.style.display = 'block';
@@ -1085,6 +1090,176 @@ function formatDateString(dateStr) {
     return `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/YYYY
   }
   return dateStr;
+}
+
+// ===== EXCEL DATA EDITOR =====
+function clearExcelFilters() {
+  document.getElementById('ed-fi-gd').value = '';
+  document.getElementById('ed-fi-date').value = '';
+  document.getElementById('ed-fi-search').value = '';
+  renderExcelData();
+}
+
+function renderExcelData() {
+  const fiGd = document.getElementById('ed-fi-gd').value;
+  const fiDate = document.getElementById('ed-fi-date').value;
+  const fiSearch = document.getElementById('ed-fi-search').value.toLowerCase().trim();
+
+  let filtered = [...state.entries];
+  if (fiGd) filtered = filtered.filter(e => e.godownId === fiGd);
+  if (fiDate) filtered = filtered.filter(e => e.date === fiDate);
+  if (fiSearch) filtered = filtered.filter(e => (e.particulers || '').toLowerCase().includes(fiSearch));
+
+  // Sort descending
+  filtered.sort((a, b) => b.date.localeCompare(a.date));
+
+  const tbody = document.getElementById('excel-tbody');
+  tbody.innerHTML = '';
+
+  filtered.forEach(e => {
+    let godownOptions = state.godowns.map(g => `<option value="${g.id}" ${g.id === e.godownId ? 'selected' : ''}>${g.name}</option>`).join('');
+    const tr = document.createElement('tr');
+    tr.id = `erow-${e.id}`;
+    tr.innerHTML = `
+      <td><input type="date" id="ed-dt-${e.id}" value="${e.date}"></td>
+      <td><select id="ed-gd-${e.id}">${godownOptions}</select></td>
+      <td><input type="text" id="ed-pt-${e.id}" value="${e.particulers}"></td>
+      <td><input type="number" id="ed-ib-${e.id}" value="${e.issBags}" class="num"></td>
+      <td><input type="number" id="ed-iq-${e.id}" value="${e.issQty}" step="0.001" class="num"></td>
+      <td><input type="number" id="ed-rb-${e.id}" value="${e.recvBags}" class="num"></td>
+      <td><input type="number" id="ed-rq-${e.id}" value="${e.recvQty}" step="0.001" class="num"></td>
+      <td><input type="number" id="ed-cb-${e.id}" value="${e.closBags}" class="num"></td>
+      <td><input type="number" id="ed-cq-${e.id}" value="${e.closQty}" step="0.001" class="num"></td>
+      <td><input type="text" id="ed-rm-${e.id}" value="${e.remarks}"></td>
+      <td class="actions">
+        <button class="btn btn-primary btn-sm" onclick="saveExcelRow('${e.id}')" style="padding:4px 8px; font-size:11px;">Save</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteExcelRow('${e.id}')" style="padding:4px 8px; font-size:11px;">Del</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Add "New Row" at the bottom
+  let godownOptionsNew = state.godowns.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+  // Use filter date if available, otherwise today
+  const defaultDate = fiDate || new Date().toISOString().split('T')[0];
+  const trNew = document.createElement('tr');
+  trNew.id = `erow-new`;
+  trNew.style.backgroundColor = 'rgba(0, 200, 100, 0.05)';
+  trNew.innerHTML = `
+    <td><input type="date" id="ed-dt-new" value="${defaultDate}"></td>
+    <td><select id="ed-gd-new"><option value="">Select Godown...</option>${godownOptionsNew}</select></td>
+    <td><input type="text" id="ed-pt-new" placeholder="New Particulars..."></td>
+    <td><input type="number" id="ed-ib-new" placeholder="0" class="num"></td>
+    <td><input type="number" id="ed-iq-new" placeholder="0.000" step="0.001" class="num"></td>
+    <td><input type="number" id="ed-rb-new" placeholder="0" class="num"></td>
+    <td><input type="number" id="ed-rq-new" placeholder="0.000" step="0.001" class="num"></td>
+    <td><input type="number" id="ed-cb-new" placeholder="0" class="num"></td>
+    <td><input type="number" id="ed-cq-new" placeholder="0.000" step="0.001" class="num"></td>
+    <td><input type="text" id="ed-rm-new" placeholder="Remarks..."></td>
+    <td class="actions">
+      <button class="btn btn-secondary btn-sm" onclick="addExcelRow()" style="padding:4px 8px; font-size:11px; width:100%;">Add</button>
+    </td>
+  `;
+  tbody.appendChild(trNew);
+}
+
+async function saveExcelRow(id) {
+  const godownId = document.getElementById('ed-gd-'+id).value;
+  const dateVal = document.getElementById('ed-dt-'+id).value;
+  const partVal = document.getElementById('ed-pt-'+id).value.trim();
+  const issB = parseFloat(document.getElementById('ed-ib-'+id).value) || 0;
+  const issQ = parseFloat(document.getElementById('ed-iq-'+id).value) || 0;
+  const recvB = parseFloat(document.getElementById('ed-rb-'+id).value) || 0;
+  const recvQ = parseFloat(document.getElementById('ed-rq-'+id).value) || 0;
+  const closB = parseFloat(document.getElementById('ed-cb-'+id).value) || 0;
+  const closQ = parseFloat(document.getElementById('ed-cq-'+id).value) || 0;
+  const remVal = document.getElementById('ed-rm-'+id).value.trim();
+
+  const payload = {
+    godownId, date: dateVal, particulers: partVal,
+    issBags: issB, issQty: issQ, recvBags: recvB, recvQty: recvQ,
+    closBags: closB, closQty: closQ, remarks: remVal
+  };
+
+  try {
+    const res = await fetch(`/api/entries/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Row updated successfully!', 'success');
+      await loadAppData();
+      renderExcelData();
+    } else {
+      showToast(data.error || 'Error updating', 'error');
+    }
+  } catch (err) {
+    console.error('Update entry error', err);
+    showToast('Failed to update entry.', 'error');
+  }
+}
+
+async function addExcelRow() {
+  const godownId = document.getElementById('ed-gd-new').value;
+  const dateVal = document.getElementById('ed-dt-new').value;
+  if(!godownId || !dateVal) {
+    showToast('Godown and Date are required', 'error');
+    return;
+  }
+  const partVal = document.getElementById('ed-pt-new').value.trim();
+  const issB = parseFloat(document.getElementById('ed-ib-new').value) || 0;
+  const issQ = parseFloat(document.getElementById('ed-iq-new').value) || 0;
+  const recvB = parseFloat(document.getElementById('ed-rb-new').value) || 0;
+  const recvQ = parseFloat(document.getElementById('ed-rq-new').value) || 0;
+  const closB = parseFloat(document.getElementById('ed-cb-new').value) || 0;
+  const closQ = parseFloat(document.getElementById('ed-cq-new').value) || 0;
+  const remVal = document.getElementById('ed-rm-new').value.trim();
+
+  const payload = {
+    userId: state.user.id, godownId, date: dateVal, particulers: partVal,
+    issBags: issB, issQty: issQ, recvBags: recvB, recvQty: recvQ,
+    closBags: closB, closQty: closQ, remarks: remVal
+  };
+
+  try {
+    const res = await fetch('/api/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Row added successfully!', 'success');
+      await loadAppData();
+      renderExcelData();
+    } else {
+      showToast(data.error || 'API Error', 'error');
+    }
+  } catch (err) {
+    console.error('Save entry API error', err);
+    showToast('Failed to add entry.', 'error');
+  }
+}
+
+async function deleteExcelRow(entryId) {
+  if (!confirm('Are you sure you want to delete this row?')) return;
+  try {
+    const res = await fetch(`/api/entries/${entryId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Row deleted.', 'success');
+      await loadAppData();
+      renderExcelData();
+    } else {
+      showToast(data.error || 'Error deleting', 'error');
+    }
+  } catch (err) {
+    console.error('Delete entry error', err);
+    showToast('Failed to delete row.', 'error');
+  }
 }
 
 // ===== INITIAL STARTUP =====
