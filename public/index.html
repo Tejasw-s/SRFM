@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>GodownAudit</title>
+  <!-- Google Fonts: Plus Jakarta Sans for clean typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Noto+Sans+Devanagari:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body class="light-theme">
+
+  <!-- ===== LOGIN PAGE ===== -->
+  <div id="login-page">
+    <div class="login-background-glow"></div>
+    <div class="login-card">
+      <div class="login-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      </div>
+      <div class="login-title">GodownAudit</div>
+      <div class="login-sub" id="login-sub">Log in to the Godown Audit system</div>
+      <div class="login-err" id="login-err"></div>
+      
+      <div class="form-group">
+        <label id="lbl-email">📧 Email / Username</label>
+        <input type="text" id="login-email" placeholder="sarojkumar" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label id="lbl-pass">🔒 Password</label>
+        <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      
+      <button class="btn btn-primary" onclick="doLogin()" id="login-btn">
+        <span class="spinner" id="login-spinner" style="display: none;"></span>
+        <span id="login-btn-text">Log In</span>
+      </button>
+      
+      <div class="login-footer" id="login-footer-txt">⚡ Secured by TiDB Cloud Database</div>
+    </div>
+  </div>
+
+  <!-- ===== TOAST ALERT ===== -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ===== APP SHELL ===== -->
+  <div id="app" style="display: none;">
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-logo-container">
+          <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          <span class="topbar-logo">GodownAudit</span>
+        </div>
+      </div>
+      
+      <div class="topbar-right">
+        <span class="topbar-user" id="topbar-user"></span>
+        
+        <div class="db-status db-connected" id="db-status-badge">
+          <div class="db-dot"></div>
+          <span id="db-status-txt">TiDB Cloud Connected</span>
+        </div>
+        
+        
+
+        <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle Theme">
+          <!-- Moon icon -->
+          <svg class="theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+          <!-- Sun icon -->
+          <svg class="theme-icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        </button>
+
+        <button class="logout-btn" onclick="doLogout()" id="logout-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          <span id="logout-btn-lbl">Logout</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- MOBILE BOTTOM NAV -->
+    <nav class="bottom-nav">
+      <div class="bottom-nav-inner">
+        <button class="bnav-btn active" id="bn-dash" onclick="showPage('dashboard')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          <span id="bn-dash-lbl">Home</span>
+        </button>
+        <button class="bnav-btn" id="bn-entry" onclick="showPage('entry')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span id="bn-entry-lbl">Entry</span>
+        </button>
+        <button class="bnav-btn" id="bn-records" onclick="showPage('records')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span id="bn-records-lbl">Records</span>
+        </button>
+        <button class="bnav-btn" id="bn-report" onclick="showPage('report')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span id="bn-report-lbl">Report</span>
+        </button>
+        <button class="bnav-btn" id="bn-godowns" onclick="showPage('godowns')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span id="bn-godowns-lbl">Godown</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- LAYOUT CONTAINER -->
+    <div class="layout">
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <div class="sidebar-section" id="sb-menu-lbl">MENU</div>
+        <nav class="sidebar-menu">
+          <div class="sidebar-item active" id="sb-dash" onclick="showPage('dashboard')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            <span id="sb-dash-lbl">Dashboard</span>
+          </div>
+          <div class="sidebar-item" id="sb-entry" onclick="showPage('entry')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span id="sb-entry-lbl">New Entry</span>
+          </div>
+          <div class="sidebar-item" id="sb-records" onclick="showPage('records')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span id="sb-records-lbl">All Records</span>
+          </div>
+          <div class="sidebar-item" id="sb-report" onclick="showPage('report')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            <span id="sb-report-lbl">Report & Print</span>
+          </div>
+          <div class="sidebar-item" id="sb-godowns" onclick="showPage('godowns')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            <span id="sb-godowns-lbl">Manage Godowns</span>
+          </div>
+          <div class="sidebar-item" id="sb-settings" onclick="showPage('settings')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span id="sb-settings-lbl">Settings</span>
+          </div>
+        </nav>
+      </aside>
+
+      <!-- MAIN CONTENT AREA -->
+      <main class="main">
+        
+        <!-- ===== DASHBOARD PAGE ===== -->
+        <div class="page-section active" id="page-dashboard">
+          <div class="print-header">
+            <h2>GodownAudit — Summary Report</h2>
+            <p id="print-date-d"></p>
+          </div>
+          
+          <div class="ph">
+            <h1 id="dash-title">Today's Summary</h1>
+            <p id="dash-sub">Overall status of all godowns</p>
+          </div>
+          
+          <div class="metrics">
+            <div class="mc or">
+              <div class="mc-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                </svg>
+              </div>
+              <div class="mc-content">
+                <div class="mc-lbl" id="ml-iss-b">Total Issued (Bags)</div>
+                <div class="mc-val" id="mv-iss-b">0</div>
+              </div>
+            </div>
+            <div class="mc or">
+              <div class="mc-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4M4 6v12c0 1.1.9 2 2 2h14v-4"/>
+                  <path d="M18 12a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h4v-6"/>
+                </svg>
+              </div>
+              <div class="mc-content">
+                <div class="mc-lbl" id="ml-iss-q">Total Issued (M.T.)</div>
+                <div class="mc-val" id="mv-iss-q">0</div>
+              </div>
+            </div>
+            <div class="mc gr">
+              <div class="mc-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 22V2M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                </svg>
+              </div>
+              <div class="mc-content">
+                <div class="mc-lbl" id="ml-recv-b">Total Recv (Bags)</div>
+                <div class="mc-val" id="mv-recv-b">0</div>
+              </div>
+            </div>
+            <div class="mc gr">
+              <div class="mc-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+                </svg>
+              </div>
+              <div class="mc-content">
+                <div class="mc-lbl" id="ml-recv-q">Total Recv (M.T.)</div>
+                <div class="mc-val" id="mv-recv-q">0</div>
+              </div>
+            </div>
+            <div class="mc nv">
+              <div class="mc-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="20" x2="12" y2="10"/>
+                  <line x1="18" y1="20" x2="18" y2="4"/>
+                  <line x1="6" y1="20" x2="6" y2="16"/>
+                </svg>
+              </div>
+              <div class="mc-content">
+                <div class="mc-lbl" id="ml-clos-b">Closing Stock (Bags)</div>
+                <div class="mc-val" id="mv-clos-b">0</div>
+              </div>
+            </div>
+            <div class="mc nv">
+              <div class="mc-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+              </div>
+              <div class="mc-content">
+                <div class="mc-lbl" id="ml-clos-q">Closing Stock (M.T.)</div>
+                <div class="mc-val" id="mv-clos-q">0</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="card">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              <span id="dash-gw-t">Godown-wise Stock Status</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th id="dg-gd">Godown</th>
+                    <th class="num" id="dg-op-b">Op. Bags</th>
+                    <th class="num" id="dg-op-q">Op. M.T.</th>
+                    <th class="num" id="dg-iss-b">Issued Bags</th>
+                    <th class="num" id="dg-iss-q">Issued M.T.</th>
+                    <th class="num" id="dg-recv-b">Recv Bags</th>
+                    <th class="num" id="dg-recv-q">Recv M.T.</th>
+                    <th class="num" id="dg-clos-b">Clos Bags ✦</th>
+                    <th class="num" id="dg-clos-q">Clos M.T. ✦</th>
+                  </tr>
+                </thead>
+                <tbody id="dash-gd-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+          
+          <div class="card">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span id="dash-rec-t">Recent Entries (10)</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th id="rt-dt">Date</th>
+                    <th id="rt-gd">Godown</th>
+                    <th id="rt-pt">Particulers</th>
+                    <th class="num" id="rt-ib">Issued Bags</th>
+                    <th class="num" id="rt-iq">Issued M.T.</th>
+                    <th class="num" id="rt-rb">Recv Bags</th>
+                    <th class="num" id="rt-rq">Recv M.T.</th>
+                    <th class="num" id="rt-cb">Clos Bags</th>
+                    <th class="num" id="rt-cq">Clos M.T.</th>
+                  </tr>
+                </thead>
+                <tbody id="recent-tbody"></tbody>
+              </table>
+            </div>
+            <p id="recent-empty" style="text-align:center;color:var(--t3);padding:22px;display:none;font-size:15px;"></p>
+          </div>
+        </div>
+
+        <!-- ===== NEW ENTRY PAGE ===== -->
+        <div class="page-section" id="page-entry">
+          <div class="ph">
+            <h1 id="entry-title">Add New Entry</h1>
+            <p id="entry-sub">Fill in daily warehouse records</p>
+          </div>
+          
+          <div class="card">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span id="ef-title">Entry Form</span>
+            </div>
+            
+            <div class="form-grid" style="margin-bottom:12px">
+              <div class="form-group">
+                <label id="lbl-dt">📅 Date</label>
+                <input type="date" id="f-date">
+              </div>
+              <div class="form-group">
+                <label id="lbl-gd">🏭 Godown</label>
+                <select id="f-godown" onchange="refreshAutoCalc()"></select>
+              </div>
+              <div class="form-group full">
+                <label id="lbl-pt">📝 Particulers — e.g. UP Lorry, Bihar, Raj Lorry</label>
+                <input type="text" id="f-part" placeholder="UP Lorry / Bihar...">
+              </div>
+            </div>
+
+            <div class="form-grid" style="margin-bottom:12px">
+              <div class="form-group">
+                <label id="lbl-ib">📤 Issued (Bags)</label>
+                <input type="number" id="f-iss-b" placeholder="0" min="0" oninput="autoCalcClosing()">
+              </div>
+              <div class="form-group">
+                <label id="lbl-iq">📤 Issued (Qty M.T.)</label>
+                <input type="number" id="f-iss-q" placeholder="0.00" step="0.001" min="0" oninput="autoCalcClosing()">
+              </div>
+              <div class="form-group">
+                <label id="lbl-rb">📥 Received (Bags)</label>
+                <input type="number" id="f-recv-b" placeholder="0" min="0" oninput="autoCalcClosing()">
+              </div>
+              <div class="form-group">
+                <label id="lbl-rq">📥 Received (Qty M.T.)</label>
+                <input type="number" id="f-recv-q" placeholder="0.00" step="0.001" min="0" oninput="autoCalcClosing()">
+              </div>
+            </div>
+
+            <div class="form-grid" style="margin-bottom:14px">
+              <div class="form-group">
+                <label id="lbl-cb">📊 Closing Stock (Bags) ✦ Auto</label>
+                <input type="number" id="f-clos-b" placeholder="0" min="0" class="auto-field" readonly style="background:var(--bg); border-color:transparent; font-weight:600; color:var(--text); opacity:0.8;">
+              </div>
+              <div class="form-group">
+                <label id="lbl-cq">📊 Closing Stock (M.T.) ✦ Auto</label>
+                <input type="number" id="f-clos-q" placeholder="0.000" step="0.001" min="0" class="auto-field" readonly style="background:var(--bg); border-color:transparent; font-weight:600; color:var(--text); opacity:0.8;">
+              </div>
+              <div class="form-group" style="grid-column: 1 / -1;">
+                <label id="lbl-rm">💬 Remarks (Optional)</label>
+                <input type="text" id="f-rem" placeholder="Any special notes...">
+              </div>
+            </div>
+            
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn btn-primary no-print" onclick="saveEntry()" id="btn-save">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+                <span id="save-lbl">Save Entry</span>
+              </button>
+              <button class="btn btn-outline no-print" onclick="clearForm()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                <span id="clear-lbl">Clear Form</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Opening Stock Setup -->
+          <div class="card">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span id="op-title">Opening Stock Setup</span>
+            </div>
+            <p id="op-sub" style="font-size:14px;color:var(--t2);margin-bottom:16px;">Define initial stock levels for each godown (once)</p>
+            
+            <div id="op-form"></div>
+            
+            <button class="btn btn-secondary no-print" style="margin-top:12px" onclick="saveOpStock()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/></svg>
+              <span id="op-save-lbl">Save Opening Stock</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ===== RECORDS PAGE ===== -->
+        <div class="page-section" id="page-records">
+          <div class="ph">
+            <h1 id="records-title">All Records</h1>
+            <p id="records-sub">View, edit, or delete records anytime</p>
+          </div>
+          
+          <div class="card no-print">
+            <div class="filter-bar">
+              <div class="fg">
+                <label id="fg-gd">Godown</label>
+                <select id="fi-gd" onchange="renderRecords()"></select>
+              </div>
+              <div class="fg">
+                <label id="fg-fr">From Date</label>
+                <input type="date" id="fi-fr" onchange="renderRecords()">
+              </div>
+              <div class="fg">
+                <label id="fg-to">To Date</label>
+                <input type="date" id="fi-to" onchange="renderRecords()">
+              </div>
+              <div class="fg">
+                <label id="fg-dy">Day</label>
+                <select id="fi-dy" onchange="renderRecords()">
+                  <option value="">All Days</option>
+                  <option value="0">Sunday</option>
+                  <option value="1">Monday</option>
+                  <option value="2">Tuesday</option>
+                  <option value="3">Wednesday</option>
+                  <option value="4">Thursday</option>
+                  <option value="5">Friday</option>
+                  <option value="6">Saturday</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label id="fg-pt">Search</label>
+                <input type="text" id="fi-pt" placeholder="UP Lorry..." onkeyup="renderRecords()">
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="clearFilters()" style="height: 38px;">
+                <span id="clr-f-lbl">Clear Filters</span>
+              </button>
+            </div>
+          </div>
+          
+          <div class="card">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th id="rh-dt">Date</th>
+                    <th id="rh-dy">Day</th>
+                    <th id="rh-gd">Godown</th>
+                    <th id="rh-pt">Particulers</th>
+                    <th class="num" id="rh-ib">Issued Bags</th>
+                    <th class="num" id="rh-iq">Issued M.T.</th>
+                    <th class="num" id="rh-rb">Recv Bags</th>
+                    <th class="num" id="rh-rq">Recv M.T.</th>
+                    <th class="num" id="rh-cb">Clos Bags</th>
+                    <th class="num" id="rh-cq">Clos M.T.</th>
+                    <th id="rh-ac" class="no-print">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="rec-tbody"></tbody>
+                <tfoot>
+                  <tr class="tfoot-row">
+                    <td colspan="4" id="tot-lbl" style="font-weight:700">Total</td>
+                    <td class="num" id="tf-ib">—</td>
+                    <td class="num" id="tf-iq">—</td>
+                    <td class="num" id="tf-rb">—</td>
+                    <td class="num" id="tf-rq">—</td>
+                    <td class="num" id="tf-cb">—</td>
+                    <td class="num" id="tf-cq">—</td>
+                    <td class="no-print"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <p id="rec-empty" style="text-align:center;color:var(--t3);padding:22px;display:none;"></p>
+          </div>
+        </div>
+
+        <!-- ===== REPORT PAGE ===== -->
+        <div class="page-section" id="page-report">
+          <div class="print-header">
+            <h2>GodownAudit — Ledger Report</h2>
+            <p id="print-date-r"></p>
+          </div>
+          
+          <div class="ph">
+            <h1 id="rep-title">Reports & Printing</h1>
+            <p id="rep-sub">Generate godown statement and print</p>
+          </div>
+          
+          <div class="card no-print">
+            <div class="filter-bar">
+              <div class="fg">
+                <label id="rf-gd">Godown</label>
+                <select id="ri-gd" onchange="renderReport()"></select>
+              </div>
+              <div class="fg">
+                <label id="rf-fr">From Date</label>
+                <input type="date" id="ri-fr" onchange="renderReport()">
+              </div>
+              <div class="fg">
+                <label id="rf-to">To Date</label>
+                <input type="date" id="ri-to" onchange="renderReport()">
+              </div>
+              <button class="btn btn-secondary no-print" onclick="window.print()" style="height: 38px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                <span id="print-lbl">Print</span>
+              </button>
+            </div>
+          </div>
+          
+          <div class="metrics">
+            <div class="mc or">
+              <div class="mc-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </div>
+              <div class="mc-content">
+                <div class="mc-lbl" id="rm-ib">Issued Bags</div>
+                <div class="mc-val" id="rmv-ib">0</div>
+              </div>
+            </div>
+            <div class="mc or">
+              <div class="mc-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              </div>
+              <div class="mc-content">
+                <div class="mc-lbl" id="rm-iq">Issued M.T.</div>
+                <div class="mc-val" id="rmv-iq">0</div>
+              </div>
+            </div>
+            <div class="mc gr">
+              <div class="mc-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </div>
+              <div class="mc-content">
+                <div class="mc-lbl" id="rm-rb">Recv Bags</div>
+                <div class="mc-val" id="rmv-rb">0</div>
+              </div>
+            </div>
+            <div class="mc gr">
+              <div class="mc-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              </div>
+              <div class="mc-content">
+                <div class="mc-lbl" id="rm-rq">Recv M.T.</div>
+                <div class="mc-val" id="rmv-rq">0</div>
+              </div>
+            </div>
+            <div class="mc nv">
+              <div class="mc-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/></svg>
+              </div>
+              <div class="mc-content">
+                <div class="mc-lbl" id="rm-cb">Clos Bags</div>
+                <div class="mc-val" id="rmv-cb">0</div>
+              </div>
+            </div>
+            <div class="mc nv">
+              <div class="mc-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div class="mc-content">
+                <div class="mc-lbl" id="rm-cq">Clos M.T.</div>
+                <div class="mc-val" id="rmv-cq">0</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="card">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <span id="rep-led-t">Ledger Report</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th id="rp-dt">Date</th>
+                    <th id="rp-gd">Godown</th>
+                    <th id="rp-pt">Particulers</th>
+                    <th class="num" id="rp-ib">Issued Bags</th>
+                    <th class="num" id="rp-iq">Issued M.T.</th>
+                    <th class="num" id="rp-rb">Recv Bags</th>
+                    <th class="num" id="rp-rq">Recv M.T.</th>
+                    <th class="num" id="rp-cb">Clos Bags</th>
+                    <th class="num" id="rp-cq">Clos M.T.</th>
+                  </tr>
+                </thead>
+                <tbody id="rep-tbody"></tbody>
+                <tfoot>
+                  <tr class="tfoot-row">
+                    <td colspan="3" id="rep-tot-lbl" style="font-weight:700">Total</td>
+                    <td class="num" id="rptf-ib">0</td>
+                    <td class="num" id="rptf-iq">0</td>
+                    <td class="num" id="rptf-rb">0</td>
+                    <td class="num" id="rptf-rq">0</td>
+                    <td class="num" id="rptf-cb">0</td>
+                    <td class="num" id="rptf-cq">0</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <p id="rep-empty" style="text-align:center;color:var(--t3);padding:22px;display:none;"></p>
+          </div>
+        </div>
+
+        <!-- ===== GODOWNS PAGE ===== -->
+        <div class="page-section" id="page-godowns">
+          <div class="ph">
+            <h1 id="gd-title">Godown Management</h1>
+            <p id="gd-sub">Add, rename, or delete facilities</p>
+          </div>
+          
+          <div class="card">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span id="ag-title">Create Godown</span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+              <div class="form-group" style="flex:1;min-width:160px">
+                <label id="lbl-gname">Godown Name</label>
+                <input type="text" id="new-gd-name" placeholder="Godown No 3 / G No 5...">
+              </div>
+              <button class="btn btn-primary no-print" onclick="addGodown()" style="width:auto;height: 48px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span id="ag-btn">Add Godown</span>
+              </button>
+            </div>
+          </div>
+          
+          <div class="card">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              <span id="gdl-title">Godowns List</span>
+            </div>
+            <div id="gd-list" class="godowns-list-container"></div>
+            <p id="gd-empty" style="color:var(--t3);font-size:15px;text-align:center;padding:18px;display:none;"></p>
+          </div>
+        </div>
+
+        <!-- ===== SETTINGS PAGE ===== -->
+        <div class="page-section" id="page-settings">
+          <div class="ph">
+            <h1 id="set-title">Settings</h1>
+            <p id="set-sub">TiDB connection and credentials</p>
+          </div>
+          
+          <div class="card">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              <span id="tidb-title">TiDB Database</span>
+            </div>
+            
+            <div class="db-connected-card">
+              <div class="db-connected-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+              <div class="db-connected-text">
+                <h3 id="tidb-status-head">Connected to TiDB Cloud Database</h3>
+                <p id="tidb-status-desc">All details are securely stored in the cloud database in real-time.</p>
+              </div>
+            </div>
+            
+            <div class="form-group" style="margin-top: 15px;">
+              <label>Database Server Host</label>
+              <input type="text" id="sett-host" readonly class="readonly-input">
+            </div>
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+              <div class="form-group">
+                <label>Database User</label>
+                <input type="text" id="sett-user" readonly class="readonly-input">
+              </div>
+              <div class="form-group">
+                <label>Database Name</label>
+                <input type="text" id="sett-db" readonly class="readonly-input">
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span id="acc-title">Account Management</span>
+            </div>
+            <div style="font-size:15px;color:var(--text);margin-bottom:14px; display: flex; gap: 8px;">
+              <span id="acc-email-lbl" style="font-weight: 600;">Login:</span>
+              <span id="acc-email" style="font-weight:700; color: var(--saffron);"></span>
+            </div>
+            
+            <div class="form-group" style="max-width:320px;margin-bottom:10px">
+              <label id="lbl-new-pass">Change Password</label>
+              <input type="password" id="new-pass" placeholder="नया पासवर्ड">
+            </div>
+            
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn btn-outline btn-sm no-print" onclick="changePassword()">
+                <span id="chg-pass-lbl">Update Password</span>
+              </button>
+              <button class="btn btn-danger btn-sm no-print" onclick="doLogout()">
+                <span id="logout-lbl2">Logout</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <span id="sql-title">SQL Schema (TiDB)</span>
+            </div>
+            <p style="font-size:13px;color:var(--t2);margin-bottom:12px;" id="sql-desc">Run these DDL statements in TiDB:</p>
+            <pre class="sql-code-block">-- Users table
+CREATE TABLE users (
+  id VARCHAR(36) PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Godowns table
+CREATE TABLE godowns (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  op_bags DECIMAL(12,2) DEFAULT 0,
+  op_qty DECIMAL(12,3) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Entries table
+CREATE TABLE entries (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  godown_id VARCHAR(36) NOT NULL,
+  entry_date DATE NOT NULL,
+  particulers VARCHAR(500),
+  iss_bags DECIMAL(12,2) DEFAULT 0,
+  iss_qty DECIMAL(12,3) DEFAULT 0,
+  recv_bags DECIMAL(12,2) DEFAULT 0,
+  recv_qty DECIMAL(12,3) DEFAULT 0,
+  clos_bags DECIMAL(12,2) DEFAULT 0,
+  clos_qty DECIMAL(12,3) DEFAULT 0,
+  remarks TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW() ON UPDATE NOW()
+);</pre>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ===== EDIT ENTRY MODAL ===== -->
+  <div class="modal-overlay" id="edit-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="em-title">Edit Warehouse Entry</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <input type="hidden" id="e-id">
+      
+      <div class="form-grid" style="margin-bottom:10px;">
+        <div class="form-group">
+          <label>तारीख</label>
+          <input type="date" id="e-dt">
+        </div>
+        <div class="form-group">
+          <label>गोदाम</label>
+          <select id="e-gd"></select>
+        </div>
+        <div class="form-group full">
+          <label>विवरण</label>
+          <input type="text" id="e-pt">
+        </div>
+      </div>
+      
+      <div class="entry-columns-grid">
+        <div class="sec-box sec-or">
+          <div class="sec-label">ISSUES</div>
+          <div class="form-group" style="margin-bottom:8px">
+            <label>Bags</label>
+            <input type="number" id="e-ib" min="0" oninput="editAutoCalc()">
+          </div>
+          <div class="form-group">
+            <label>Qty M.T.</label>
+            <input type="number" id="e-iq" step="0.001" min="0" oninput="editAutoCalc()">
+          </div>
+        </div>
+        <div class="sec-box sec-gr">
+          <div class="sec-label">RECEIVED</div>
+          <div class="form-group" style="margin-bottom:8px">
+            <label>Bags</label>
+            <input type="number" id="e-rb" min="0" oninput="editAutoCalc()">
+          </div>
+          <div class="form-group">
+            <label>Qty M.T.</label>
+            <input type="number" id="e-rq" step="0.001" min="0" oninput="editAutoCalc()">
+          </div>
+        </div>
+      </div>
+      
+      <div class="sec-box sec-nv" style="margin-bottom:10px;">
+        <div class="sec-label">CLOSING STOCK <span class="calc-badge">✦ Auto</span></div>
+        <div class="closing-fields-grid">
+          <div class="form-group">
+            <label>Bags</label>
+            <input type="number" id="e-cb" class="auto-field" readonly>
+          </div>
+          <div class="form-group">
+            <label>Qty M.T.</label>
+            <input type="number" id="e-cq" class="auto-field" readonly>
+          </div>
+        </div>
+      </div>
+      
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>टिप्पणी</label>
+        <input type="text" id="e-rm">
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn btn-outline btn-sm" onclick="closeModal()">
+          <span id="cancel-lbl">Cancel</span>
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="saveEdit()">
+          <span id="update-lbl">Update</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RENAME GODOWN MODAL ===== -->
+  <div class="modal-overlay" id="rename-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="ren-title">Rename Godown</h2>
+        <button class="modal-close" onclick="document.getElementById('rename-modal').classList.remove('open')">&times;</button>
+      </div>
+      <input type="hidden" id="ren-id">
+      
+      <div class="form-group">
+        <label id="ren-lbl">New Name</label>
+        <input type="text" id="ren-input" placeholder="नया नाम">
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('rename-modal').classList.remove('open')">
+          <span>रद्द करें</span>
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="saveRename()">
+          <span id="ren-save-lbl">Save</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Javascript File -->
+  <script src="/js/app.js"></script>
+</body>
+</html>
