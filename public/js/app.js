@@ -461,18 +461,38 @@ function renderRecords() {
   tbody.innerHTML = '';
 
   let totalIssB = 0, totalIssQ = 0, totalRecvB = 0, totalRecvQ = 0;
+  
+  // Calculate final closing stock for footer based on filters
+  let finalClosB = 0;
+  let finalClosQ = 0;
+  
+  const toDateCalc = fiTo || '9999-12-31';
+
+  if (fiGd) {
+    const fs = getPrevClosing(fiGd, toDateCalc);
+    finalClosB = fs.bags;
+    finalClosQ = fs.qty;
+  } else {
+    state.godowns.forEach(g => {
+      const fs = getPrevClosing(g.id, toDateCalc);
+      finalClosB += fs.bags;
+      finalClosQ += fs.qty;
+    });
+  }
 
   if (filtered.length === 0) {
     empty.style.display = 'block';
     empty.innerText = 'No records match search parameters.';
     
-    // Clear footer totals
+    // Clear footer totals for issued/recv
     document.getElementById('tf-ib').innerText = '0';
     document.getElementById('tf-iq').innerText = '0.000';
     document.getElementById('tf-rb').innerText = '0';
     document.getElementById('tf-rq').innerText = '0.000';
-    document.getElementById('tf-cb').innerText = '0';
-    document.getElementById('tf-cq').innerText = '0.000';
+    
+    // But keep the actual calculated closing stock
+    document.getElementById('tf-cb').innerText = finalClosB.toLocaleString('en-IN');
+    document.getElementById('tf-cq').innerText = finalClosQ.toFixed(3);
   } else {
     empty.style.display = 'none';
     filtered.forEach(e => {
@@ -517,22 +537,6 @@ function renderRecords() {
     document.getElementById('tf-rb').innerText = totalRecvB.toLocaleString('en-IN');
     document.getElementById('tf-rq').innerText = totalRecvQ.toFixed(3);
     
-    // For closing stock in footer, show final current closing stock of matching godowns
-    let finalClosB = 0;
-    let finalClosQ = 0;
-    
-    if (fiGd) {
-      const fs = getPrevClosing(fiGd, '9999-12-31');
-      finalClosB = fs.bags;
-      finalClosQ = fs.qty;
-    } else {
-      // Sum closing stock of all godowns
-      state.godowns.forEach(g => {
-        const fs = getPrevClosing(g.id, '9999-12-31');
-        finalClosB += fs.bags;
-        finalClosQ += fs.qty;
-      });
-    }
     document.getElementById('tf-cb').innerText = finalClosB.toLocaleString('en-IN');
     document.getElementById('tf-cq').innerText = finalClosQ.toFixed(3);
   }
@@ -729,31 +733,40 @@ function renderReport() {
   const tbody = document.getElementById('rep-tbody');
   const empty = document.getElementById('rep-empty');
   tbody.innerHTML = '';
+  empty.style.display = 'none';
 
   let totIssB = 0, totIssQ = 0, totRecvB = 0, totRecvQ = 0;
+
+  // Calculate opening balance before the filtered start date
+  let dayBeforeFr = '0000-01-01';
+  if (riFr) {
+    const dObj = new Date(riFr);
+    dObj.setDate(dObj.getDate() - 1);
+    dayBeforeFr = dObj.toISOString().split('T')[0];
+  }
+  const prev = getPrevClosing(riGd, dayBeforeFr);
+  let finalB = prev.bags;
+  let finalQ = prev.qty;
+
+  // Always show the Opening Balance row for ledger clarity
+  const trOp = document.createElement('tr');
+  trOp.innerHTML = `
+    <td style="font-weight: 600">${riFr ? formatDateString(riFr) : 'Opening'}</td>
+    <td>${state.godowns.find(g => g.id === riGd)?.name || 'Unknown'}</td>
+    <td><em>Opening Balance</em></td>
+    <td class="num" style="color: var(--saffron)">0</td>
+    <td class="num" style="color: var(--saffron)">0.000</td>
+    <td class="num" style="color: var(--green)">0</td>
+    <td class="num" style="color: var(--green)">0.000</td>
+    <td class="num" style="font-weight: 600">${finalB.toLocaleString('en-IN')}</td>
+    <td class="num" style="font-weight: 600">${finalQ.toFixed(3)}</td>
+  `;
+  tbody.appendChild(trOp);
 
   if (filtered.length === 0) {
     empty.style.display = 'block';
     empty.innerText = 'No records match search parameters.';
-    
-    // Reset report metrics
-    document.getElementById('rmv-ib').innerText = '0';
-    document.getElementById('rmv-iq').innerText = '0.000';
-    document.getElementById('rmv-rb').innerText = '0';
-    document.getElementById('rmv-rq').innerText = '0.000';
-    document.getElementById('rmv-cb').innerText = '0';
-    document.getElementById('rmv-cq').innerText = '0.000';
-    
-    // Reset footer
-    document.getElementById('rptf-ib').innerText = '0';
-    document.getElementById('rptf-iq').innerText = '0.000';
-    document.getElementById('rptf-rb').innerText = '0';
-    document.getElementById('rptf-rq').innerText = '0.000';
-    document.getElementById('rptf-cb').innerText = '0';
-    document.getElementById('rptf-cq').innerText = '0.000';
   } else {
-    empty.style.display = 'none';
-
     filtered.forEach(e => {
       const g = state.godowns.find(gd => gd.id === e.godownId);
       totIssB += parseFloat(e.issBags) || 0;
@@ -777,25 +790,25 @@ function renderReport() {
     });
 
     const lastEntry = filtered[filtered.length - 1];
-    const finalB = lastEntry.closBags;
-    const finalQ = lastEntry.closQty;
-
-    // Set metrics
-    document.getElementById('rmv-ib').innerText = totIssB.toLocaleString('en-IN');
-    document.getElementById('rmv-iq').innerText = totIssQ.toFixed(3);
-    document.getElementById('rmv-rb').innerText = totRecvB.toLocaleString('en-IN');
-    document.getElementById('rmv-rq').innerText = totRecvQ.toFixed(3);
-    document.getElementById('rmv-cb').innerText = finalB.toLocaleString('en-IN');
-    document.getElementById('rmv-cq').innerText = finalQ.toFixed(3);
-
-    // Set footer
-    document.getElementById('rptf-ib').innerText = totIssB.toLocaleString('en-IN');
-    document.getElementById('rptf-iq').innerText = totIssQ.toFixed(3);
-    document.getElementById('rptf-rb').innerText = totRecvB.toLocaleString('en-IN');
-    document.getElementById('rptf-rq').innerText = totRecvQ.toFixed(3);
-    document.getElementById('rptf-cb').innerText = finalB.toLocaleString('en-IN');
-    document.getElementById('rptf-cq').innerText = finalQ.toFixed(3);
+    finalB = parseFloat(lastEntry.closBags) || 0;
+    finalQ = parseFloat(lastEntry.closQty) || 0;
   }
+
+  // Set metrics
+  document.getElementById('rmv-ib').innerText = totIssB.toLocaleString('en-IN');
+  document.getElementById('rmv-iq').innerText = totIssQ.toFixed(3);
+  document.getElementById('rmv-rb').innerText = totRecvB.toLocaleString('en-IN');
+  document.getElementById('rmv-rq').innerText = totRecvQ.toFixed(3);
+  document.getElementById('rmv-cb').innerText = finalB.toLocaleString('en-IN');
+  document.getElementById('rmv-cq').innerText = finalQ.toFixed(3);
+
+  // Set footer
+  document.getElementById('rptf-ib').innerText = totIssB.toLocaleString('en-IN');
+  document.getElementById('rptf-iq').innerText = totIssQ.toFixed(3);
+  document.getElementById('rptf-rb').innerText = totRecvB.toLocaleString('en-IN');
+  document.getElementById('rptf-rq').innerText = totRecvQ.toFixed(3);
+  document.getElementById('rptf-cb').innerText = finalB.toLocaleString('en-IN');
+  document.getElementById('rptf-cq').innerText = finalQ.toFixed(3);
 
   // Pre-fill printable metadata
   document.getElementById('print-date-r').innerText = `${'Printed Date'}: ${new Date().toLocaleString()}`;
@@ -927,49 +940,101 @@ function renderOpStockForm() {
   container.innerHTML = '';
   
   if (state.godowns.length === 0) {
-    container.innerHTML = `<p style="color:var(--t3);font-size:14px">${'No godowns configured.'}</p>`;
+    container.innerHTML = `<p style="color:var(--text-secondary);font-size:14px">${'No godowns configured.'}</p>`;
     return;
+  }
+
+  // Pre-fill the common date input
+  const commonDateInput = document.getElementById('common-op-date');
+  if (commonDateInput) {
+    // Look for any existing opDate among godowns, fallback to today
+    const existingDate = state.godowns.find(g => g.opDate);
+    if (existingDate && existingDate.opDate) {
+      commonDateInput.value = existingDate.opDate.substring(0, 10);
+    } else if (!commonDateInput.value) {
+      commonDateInput.value = new Date().toISOString().split('T')[0];
+    }
   }
 
   state.godowns.forEach(g => {
     const div = document.createElement('div');
     div.style.display = 'grid';
-    div.style.gridTemplateColumns = '1fr 1.5fr 1fr 1fr 1fr';
+    div.style.gridTemplateColumns = '1.2fr 1.5fr 1fr 1fr';
     div.style.gap = '10px';
     div.style.marginBottom = '12px';
     div.style.alignItems = 'center';
 
-    const opDateVal = g.opDate ? g.opDate.substring(0, 10) : '';
     const opNameVal = g.opName || '';
+    
+    // Remove .00 and .000 by formatting to string after parseFloat
+    const bFloat = parseFloat(g.opBags);
+    const bagsStr = (bFloat === 0 || isNaN(bFloat)) ? '0' : bFloat.toString();
+    
+    const qFloat = parseFloat(g.opQty);
+    const qtyStr = (qFloat === 0 || isNaN(qFloat)) ? '0' : qFloat.toString();
 
     div.innerHTML = `
       <div style="font-weight:600; font-size:14px; color: var(--text-secondary)">${g.name}</div>
       <div>
-        <input type="date" id="op-d-${g.id}" value="${opDateVal}" style="padding: 6px 10px;">
-      </div>
-      <div>
         <input type="text" id="op-n-${g.id}" value="${opNameVal}" placeholder="Particulers" style="padding: 6px 10px;">
       </div>
       <div>
-        <input type="number" id="op-b-${g.id}" value="${g.opBags}" placeholder="Bags" min="0" style="padding: 6px 10px;">
+        <input type="number" id="op-b-${g.id}" value="${bagsStr}" placeholder="Bags" min="0" style="padding: 6px 10px;">
       </div>
       <div>
-        <input type="number" id="op-q-${g.id}" value="${g.opQty}" step="0.001" placeholder="Qty M.T." min="0" style="padding: 6px 10px;">
+        <input type="number" id="op-q-${g.id}" value="${qtyStr}" step="0.001" placeholder="Qty M.T." min="0" style="padding: 6px 10px;">
       </div>
     `;
     container.appendChild(div);
   });
 }
 
+function updateAllOpDates() {
+  const commonDate = document.getElementById('common-op-date').value;
+  if (!commonDate) return;
+
+  const dObj = new Date(commonDate);
+  dObj.setDate(dObj.getDate() - 1);
+  const dayBefore = dObj.toISOString().split('T')[0];
+
+  state.godowns.forEach(g => {
+    let targetBags = 0;
+    let targetQty = 0;
+    
+    const gOpDate = g.opDate ? g.opDate.substring(0, 10) : '';
+    
+    if (commonDate === gOpDate) {
+      targetBags = parseFloat(g.opBags) || 0;
+      targetQty = parseFloat(g.opQty) || 0;
+    } else {
+      const prev = getPrevClosing(g.id, dayBefore);
+      targetBags = prev.bags;
+      targetQty = prev.qty;
+    }
+    
+    const bInput = document.getElementById(`op-b-${g.id}`);
+    const qInput = document.getElementById(`op-q-${g.id}`);
+    
+    if (bInput) bInput.value = targetBags === 0 ? '0' : targetBags.toString();
+    if (qInput) qInput.value = targetQty === 0 ? '0' : targetQty.toString();
+  });
+}
+
 async function saveOpStock() {
   const opStock = {};
+  const commonDateInput = document.getElementById('common-op-date');
+  const commonDate = commonDateInput ? commonDateInput.value : '';
+  
+  if (!commonDate) {
+    showToast('Please select a common opening date.', 'error');
+    return;
+  }
   
   state.godowns.forEach(g => {
-    const date = document.getElementById(`op-d-${g.id}`).value;
     const name = document.getElementById(`op-n-${g.id}`).value.trim();
     const bags = parseFloat(document.getElementById(`op-b-${g.id}`).value) || 0;
     const qty = parseFloat(document.getElementById(`op-q-${g.id}`).value) || 0;
-    opStock[g.id] = { bags, qty, date, name };
+    opStock[g.id] = { bags, qty, date: commonDate, name };
   });
 
   try {

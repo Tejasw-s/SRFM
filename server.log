@@ -1,0 +1,9 @@
+◇ injected env (6) from .env // tip: ⌘ enable debugging { debug: true }
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+Initializing database tables...
+Tables verified/created.
+Verifying default users...
+Default users verified/seeded successfully!
+Verifying default godowns...
+Default godowns verified/seeded successfully!
+Server is running on http://localhost:3000

@@ -400,6 +400,11 @@
             </div>
             <p id="op-sub" style="font-size:14px;color:var(--t2);margin-bottom:16px;">Define initial stock levels for each godown (once)</p>
             
+            <div style="margin-bottom: 16px; max-width: 250px;">
+              <label style="display:block;margin-bottom:6px;font-size:13px;color:var(--text-secondary);font-weight:600;">Common Opening Date</label>
+              <input type="date" id="common-op-date" style="padding: 8px 10px; width: 100%; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);" onchange="updateAllOpDates()">
+            </div>
+
             <div id="op-form"></div>
             
             <button class="btn btn-secondary no-print" style="margin-top:12px" onclick="saveOpStock()">
@@ -648,7 +653,7 @@
               <span id="gdl-title">Godowns List</span>
             </div>
             <div id="gd-list" class="godowns-list-container"></div>
-            <p id="gd-empty" style="color:var(--t3);font-size:15px;text-align:center;padding:18px;display:none;"></p>
+            <p id="gd-empty" style="color:var(--text-secondary);font-size:15px;text-align:center;padding:18px;display:none;"></p>
           </div>
         </div>
 
