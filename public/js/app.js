@@ -449,6 +449,35 @@ function renderDashboard() {
     });
   }
 
+  // Calculate totals for recent entries
+  let recTotOpB = 0, recTotOpQ = 0, recTotIssB = 0, recTotIssQ = 0;
+  let recTotRecvB = 0, recTotRecvQ = 0, recTotClosB = 0, recTotClosQ = 0;
+  
+  sorted.forEach(e => {
+    const rowOpBags = parseFloat(e.closBags) + parseFloat(e.issBags) - parseFloat(e.recvBags);
+    const rowOpQty = parseFloat(e.closQty) + parseFloat(e.issQty) - parseFloat(e.recvQty);
+    
+    recTotOpB += rowOpBags;
+    recTotOpQ += rowOpQty;
+    recTotIssB += parseFloat(e.issBags) || 0;
+    recTotIssQ += parseFloat(e.issQty) || 0;
+    recTotRecvB += parseFloat(e.recvBags) || 0;
+    recTotRecvQ += parseFloat(e.recvQty) || 0;
+    recTotClosB += parseFloat(e.closBags) || 0;
+    recTotClosQ += parseFloat(e.closQty) || 0;
+  });
+
+  if (document.getElementById('rtf-ob')) {
+    document.getElementById('rtf-ob').innerText = recTotOpB.toLocaleString('en-IN');
+    document.getElementById('rtf-oq').innerText = recTotOpQ.toFixed(3);
+    document.getElementById('rtf-ib').innerText = recTotIssB.toLocaleString('en-IN');
+    document.getElementById('rtf-iq').innerText = recTotIssQ.toFixed(3);
+    document.getElementById('rtf-rb').innerText = recTotRecvB.toLocaleString('en-IN');
+    document.getElementById('rtf-rq').innerText = recTotRecvQ.toFixed(3);
+    document.getElementById('rtf-cb').innerText = recTotClosB.toLocaleString('en-IN');
+    document.getElementById('rtf-cq').innerText = recTotClosQ.toFixed(3);
+  }
+
   // Pre-fill printable metadata
   document.getElementById('print-date-d').innerText = `${'Printed Date'}: ${new Date().toLocaleString()}`;
 }
