@@ -341,6 +341,8 @@ function renderDashboard() {
   
   let currentClosB = 0;
   let currentClosQ = 0;
+  let totOpB = 0;
+  let totOpQ = 0;
   
   state.godowns.forEach(g => {
     // Op. Bags for the table
@@ -352,6 +354,9 @@ function renderDashboard() {
       opBags = prev.bags;
       opQty = prev.qty;
     }
+
+    totOpB += opBags;
+    totOpQ += opQty;
 
     // Filter entries for this godown in range
     const gEntries = dashEntries.filter(e => e.godownId === g.id);
@@ -392,6 +397,16 @@ function renderDashboard() {
   document.getElementById('mv-recv-q').innerText = totalRecvQ.toFixed(3);
   document.getElementById('mv-clos-b').innerText = currentClosB.toLocaleString('en-IN');
   document.getElementById('mv-clos-q').innerText = currentClosQ.toFixed(3);
+
+  // Write values to dashboard table footer
+  document.getElementById('dt-op-b').innerText = totOpB.toLocaleString('en-IN');
+  document.getElementById('dt-op-q').innerText = totOpQ.toFixed(3);
+  document.getElementById('dt-iss-b').innerText = totalIssB.toLocaleString('en-IN');
+  document.getElementById('dt-iss-q').innerText = totalIssQ.toFixed(3);
+  document.getElementById('dt-recv-b').innerText = totalRecvB.toLocaleString('en-IN');
+  document.getElementById('dt-recv-q').innerText = totalRecvQ.toFixed(3);
+  document.getElementById('dt-clos-b').innerText = currentClosB.toLocaleString('en-IN');
+  document.getElementById('dt-clos-q').innerText = currentClosQ.toFixed(3);
 
 
   // Recent 10 entries
