@@ -139,7 +139,7 @@ async function loadAppData() {
 }
 
 function populateDropdowns() {
-  const dropFields = ['f-godown', 'fi-gd', 'ri-gd', 'e-gd', 'ed-fi-gd'];
+  const dropFields = ['f-godown', 'fi-gd', 'ri-gd', 'e-gd', 'ed-fi-gd', 'sm-from-gd', 'sm-to-gd'];
   
   dropFields.forEach(fieldId => {
     const select = document.getElementById(fieldId);
@@ -148,12 +148,11 @@ function populateDropdowns() {
     // Clear and build options
     select.innerHTML = '';
     
-    if (fieldId === 'fi-gd' || fieldId === 'ed-fi-gd' || fieldId === 'ri-gd') {
-      const allOpt = document.createElement('option');
-      allOpt.value = '';
-      allOpt.innerText = 'All Godowns';
-      select.appendChild(allOpt);
-    }
+    // Always add ALL GODOWNS as requested
+    const allOpt = document.createElement('option');
+    allOpt.value = 'ALL_GODOWNS';
+    allOpt.innerText = 'ALL GODOWNS';
+    select.appendChild(allOpt);
     
     state.godowns.forEach(g => {
       const opt = document.createElement('option');
@@ -168,6 +167,17 @@ function populateDropdowns() {
 // Retrieves the closest entry chronologically before entryDate for godownId.
 // If none exists, falls back to the opening stock of the godown.
 function getPrevClosing(godownId, beforeDateStr, excludeId = null) {
+  if (godownId === 'ALL_GODOWNS') {
+    let totalBags = 0;
+    let totalQty = 0;
+    state.godowns.forEach(g => {
+      const c = getPrevClosing(g.id, beforeDateStr, excludeId);
+      totalBags += c.bags;
+      totalQty += c.qty;
+    });
+    return { bags: totalBags, qty: totalQty };
+  }
+
   // Sort entries chronologically: latest first
   const priorEntries = state.entries
     .filter(e => e.godownId === godownId && e.date <= beforeDateStr && e.id !== excludeId)
@@ -263,7 +273,8 @@ function showPage(pageId) {
     'records': 'bn-records',
     'report': 'bn-report',
     'godowns': 'bn-godowns',
-    'production': 'bn-production'
+    'production': 'bn-production',
+    'stockmove': 'bn-stockmove'
   };
   const bnBtn = document.getElementById(bnMap[pageId]);
   if (bnBtn) bnBtn.classList.add('active');
@@ -289,6 +300,10 @@ function showPage(pageId) {
     document.getElementById('ri-fr').value = `${y}-${m}-01`;
     document.getElementById('ri-to').value = new Date().toISOString().split('T')[0];
     renderReport();
+  } else if (pageId === 'stockmove') {
+    if (!document.getElementById('sm-date').value) {
+      document.getElementById('sm-date').value = new Date().toISOString().split('T')[0];
+    }
   } else if (pageId === 'edit-data') {
     if (!document.getElementById('ed-fi-date').value) {
       document.getElementById('ed-fi-date').value = new Date().toISOString().split('T')[0];
@@ -493,7 +508,7 @@ function renderRecords() {
   let filtered = [...state.entries];
 
   // Apply filters
-  if (fiGd) filtered = filtered.filter(e => e.godownId === fiGd);
+  if (fiGd && fiGd !== 'ALL_GODOWNS') filtered = filtered.filter(e => e.godownId === fiGd);
   if (fiFr) filtered = filtered.filter(e => e.date >= fiFr);
   if (fiTo) filtered = filtered.filter(e => e.date <= fiTo);
   
@@ -524,7 +539,7 @@ function renderRecords() {
   
   const toDateCalc = fiTo || '9999-12-31';
 
-  if (fiGd) {
+  if (fiGd && fiGd !== 'ALL_GODOWNS') {
     const fs = getPrevClosing(fiGd, toDateCalc);
     finalClosB = fs.bags;
     finalClosQ = fs.qty;
@@ -629,6 +644,10 @@ async function saveEntry() {
     showToast('Please create a godown first.', 'error');
     return;
   }
+  if (godownId === 'ALL_GODOWNS') {
+    showToast('Cannot save a new entry to ALL GODOWNS.', 'error');
+    return;
+  }
   if (!dateVal) {
     showToast('Please choose a date.', 'error');
     return;
@@ -715,6 +734,11 @@ async function saveEdit() {
   const closQ = parseFloat(document.getElementById('e-cq').value) || 0;
   const remVal = document.getElementById('e-rm').value.trim();
 
+  if (godownId === 'ALL_GODOWNS') {
+    showToast('Cannot save edit to ALL GODOWNS.', 'error');
+    return;
+  }
+
   const payload = {
     godownId,
     date: dateVal,
@@ -785,7 +809,7 @@ function renderReport() {
 
   // Filter entries for selected godown in date range
   let filtered = state.entries;
-  if (riGd) filtered = filtered.filter(e => e.godownId === riGd);
+  if (riGd && riGd !== 'ALL_GODOWNS') filtered = filtered.filter(e => e.godownId === riGd);
   if (riFr) filtered = filtered.filter(e => e.date >= riFr);
   if (riTo) filtered = filtered.filter(e => e.date <= riTo);
 
@@ -810,7 +834,7 @@ function renderReport() {
   let finalB = 0;
   let finalQ = 0;
 
-  if (riGd) {
+  if (riGd && riGd !== 'ALL_GODOWNS') {
     const prev = getPrevClosing(riGd, dayBeforeFr);
     finalB = prev.bags;
     finalQ = prev.qty;
@@ -1221,7 +1245,7 @@ function renderExcelData() {
   const fiSearch = document.getElementById('ed-fi-search').value.toLowerCase().trim();
 
   let filtered = [...state.entries];
-  if (fiGd) filtered = filtered.filter(e => e.godownId === fiGd);
+  if (fiGd && fiGd !== 'ALL_GODOWNS') filtered = filtered.filter(e => e.godownId === fiGd);
   if (fiDate) filtered = filtered.filter(e => e.date === fiDate);
   if (fiSearch) filtered = filtered.filter(e => (e.particulers || '').toLowerCase().includes(fiSearch));
 
@@ -1291,6 +1315,11 @@ async function saveExcelRow(id) {
   const closQ = parseFloat(document.getElementById('ed-cq-'+id).value) || 0;
   const remVal = document.getElementById('ed-rm-'+id).value.trim();
 
+  if (godownId === 'ALL_GODOWNS') {
+    showToast('Cannot save edit to ALL GODOWNS.', 'error');
+    return;
+  }
+
   const payload = {
     godownId, date: dateVal, particulers: partVal,
     issBags: issB, issQty: issQ, recvBags: recvB, recvQty: recvQ,
@@ -1322,6 +1351,10 @@ async function addExcelRow() {
   const dateVal = document.getElementById('ed-dt-new').value;
   if(!godownId || !dateVal) {
     showToast('Godown and Date are required', 'error');
+    return;
+  }
+  if (godownId === 'ALL_GODOWNS') {
+    showToast('Cannot add entry to ALL GODOWNS.', 'error');
     return;
   }
   const partVal = document.getElementById('ed-pt-new').value.trim();
@@ -1954,3 +1987,100 @@ window.addEventListener('DOMContentLoaded', async () => {
     
   }
 });
+
+// ===== STOCK MOVE =====
+function updateStockMoveStock() {
+  const dateVal = document.getElementById('sm-date').value;
+  const godownId = document.getElementById('sm-from-gd').value;
+  const infoEl = document.getElementById('sm-from-stock');
+
+  if (!godownId || !dateVal) {
+    infoEl.innerText = 'Select a godown...';
+    return;
+  }
+
+  const prev = getPrevClosing(godownId, dateVal);
+  
+  let name = '';
+  if (godownId === 'ALL_GODOWNS') {
+    name = 'ALL GODOWNS';
+  } else {
+    const gd = state.godowns.find(g => g.id === godownId);
+    name = gd ? gd.name : '';
+  }
+
+  infoEl.innerHTML = `Available in <strong style="color:var(--saffron);">${name}</strong>: <strong>${Math.round(prev.bags).toLocaleString()}</strong> Bags / <strong>${parseFloat(prev.qty).toFixed(3)}</strong> M.T.`;
+  document.getElementById('sm-qty').value = parseFloat(prev.qty).toFixed(3);
+  document.getElementById('sm-bags').value = Math.round(prev.bags);
+}
+
+async function submitStockMove() {
+  const userId = state.user.id;
+  const dateVal = document.getElementById('sm-date').value;
+  const fromGd = document.getElementById('sm-from-gd').value;
+  const toGd = document.getElementById('sm-to-gd').value;
+  const qty = parseFloat(document.getElementById('sm-qty').value) || 0;
+  const bags = parseFloat(document.getElementById('sm-bags').value) || 0;
+  const remarks = document.getElementById('sm-remarks').value || 'Stock Transfer';
+
+  if (!dateVal || !fromGd || !toGd) {
+    showToast('Please fill all required fields', 'error');
+    return;
+  }
+  if (fromGd === toGd) {
+    showToast('Source and Destination cannot be the same', 'error');
+    return;
+  }
+  if (fromGd === 'ALL_GODOWNS' || toGd === 'ALL_GODOWNS') {
+    showToast('Cannot transfer to or from ALL GODOWNS', 'error');
+    return;
+  }
+  if (qty <= 0 && bags <= 0) {
+    showToast('Please enter a valid quantity/bags', 'error');
+    return;
+  }
+
+  // Double API call: 1 issue from source, 1 receive to dest
+  try {
+    // 1. Calculate fromGd entry
+    const prevFrom = getPrevClosing(fromGd, dateVal);
+    const closBFrom = prevFrom.bags - bags;
+    const closQFrom = prevFrom.qty - qty;
+
+    const fromPayload = {
+      userId, godownId: fromGd, date: dateVal, particulers: `Transfer to ${state.godowns.find(g=>g.id===toGd)?.name || 'Godown'}`,
+      issBags: bags, issQty: qty, recvBags: 0, recvQty: 0,
+      closBags: closBFrom, closQty: closQFrom, remarks
+    };
+
+    // 2. Calculate toGd entry
+    const prevTo = getPrevClosing(toGd, dateVal);
+    const closBTo = prevTo.bags + bags;
+    const closQTo = prevTo.qty + qty;
+
+    const toPayload = {
+      userId, godownId: toGd, date: dateVal, particulers: `Transfer from ${state.godowns.find(g=>g.id===fromGd)?.name || 'Godown'}`,
+      issBags: 0, issQty: 0, recvBags: bags, recvQty: qty,
+      closBags: closBTo, closQty: closQTo, remarks
+    };
+
+    // Do the calls sequentially
+    const resFrom = await fetch('/api/entries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fromPayload) });
+    const dataFrom = await resFrom.json();
+    if (!dataFrom.success) throw new Error(dataFrom.error);
+
+    const resTo = await fetch('/api/entries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(toPayload) });
+    const dataTo = await resTo.json();
+    if (!dataTo.success) throw new Error(dataTo.error);
+
+    showToast('Stock Transferred successfully!', 'success');
+    document.getElementById('sm-qty').value = '';
+    document.getElementById('sm-bags').value = '';
+    document.getElementById('sm-remarks').value = '';
+    
+    await loadAppData();
+  } catch (err) {
+    console.error('Submit Stock Move Error', err);
+    showToast(err.message || 'Failed to transfer stock.', 'error');
+  }
+}
